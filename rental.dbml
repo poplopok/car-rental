@@ -1,0 +1,49 @@
+
+Table user {
+  id integer [primary key, increment]
+  first_name varchar(100) [not null]
+  last_name varchar(100) [not null]
+  username varchar(50) [not null, unique]
+  email varchar(255) [not null, unique]
+  phone varchar(20)
+  date_of_birth date
+}
+
+Table category {
+  id integer [primary key, increment]
+  name varchar(50) [not null, unique]
+  price_multiplier decimal(5, 2) [not null, default: 1.00]
+}
+
+Table car {
+  id integer [primary key, increment]
+  category_id integer [not null, ref: > category.id]
+  brand varchar(100) [not null]
+  model varchar(100) [not null]
+  year integer [not null]
+  price_per_day decimal(10, 2) [not null]
+  latitude decimal(10, 7) [not null]
+  longitude decimal(10, 7) [not null]
+}
+
+Table rental {
+  id integer [primary key, increment]
+  user_id integer [not null, ref: > user.id]
+  car_id integer [not null, ref: > car.id]
+  status varchar(30) [not null, default: 'PENDING']
+  price_per_day decimal(10, 2) [not null]
+  total_price decimal(10, 2) [not null]
+  start_time timestamp [not null]
+  planned_end_time timestamp [not null]
+  actual_end_time timestamp
+}
+
+Table payment {
+  id integer [primary key, increment]
+  rental_id integer [not null, ref: > rental.id]
+  status varchar(30) [not null, default: 'PENDING']
+  payment_method varchar(30) [not null]
+  amount decimal(10, 2) [not null]
+  created_at timestamp [not null, default: `now()`]
+  completed_at timestamp
+}

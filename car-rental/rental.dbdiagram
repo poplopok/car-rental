@@ -1,0 +1,46 @@
+{
+  "version": "3.0.0",
+  "darkMode": true,
+  "gridEnabling": false,
+  "currentViewName": null,
+  "defaultView": {
+    "detailLevel": "All",
+    "relationshipMode": "All",
+    "tablePositions": [
+      {
+        "name": "user",
+        "schemaName": "public",
+        "x": 12,
+        "y": 12
+      },
+      {
+        "name": "category",
+        "schemaName": "public",
+        "x": 12,
+        "y": 314
+      },
+      {
+        "name": "car",
+        "schemaName": "public",
+        "x": 582.9466045670615,
+        "y": 101.24545773540811
+      },
+      {
+        "name": "rental",
+        "schemaName": "public",
+        "x": 1121.04052734375,
+        "y": 12
+      },
+      {
+        "name": "payment",
+        "schemaName": "public",
+        "x": 1655.22265625,
+        "y": 12
+      }
+    ],
+    "tableGroupCollapseStates": [],
+    "stickyNoteLayouts": [],
+    "referencePaths": []
+  },
+  "views": {}
+}

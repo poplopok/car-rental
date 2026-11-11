@@ -7,4 +7,5 @@ import com.example.carrental.entity.User;
 public interface UserRepository extends JpaRepository<User, Long> {
 
     public boolean existsByUsernameOrEmailOrPhone(String username, String email, String phone);
+
 }

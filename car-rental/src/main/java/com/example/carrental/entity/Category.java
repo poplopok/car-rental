@@ -19,5 +19,4 @@ public class Category {
     private String name;
 
     private BigDecimal priceMultiplier;
-
 }

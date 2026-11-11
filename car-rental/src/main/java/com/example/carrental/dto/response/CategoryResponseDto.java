@@ -1,0 +1,37 @@
+package com.example.carrental.dto.response;
+
+import java.math.BigDecimal;
+
+public class CategoryResponseDto {
+
+    private Long id;
+    private String name;
+    private BigDecimal priceMultiplier;
+
+    public CategoryResponseDto() {
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public BigDecimal getPriceMultiplier() {
+        return priceMultiplier;
+    }
+
+    public void setPriceMultiplier(BigDecimal priceMultiplier) {
+        this.priceMultiplier = priceMultiplier;
+    }
+}

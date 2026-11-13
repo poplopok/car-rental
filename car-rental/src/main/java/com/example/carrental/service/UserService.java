@@ -17,6 +17,7 @@ import com.example.carrental.exception.PaymentNotFoundException;
 import com.example.carrental.exception.RentalNotFoundException;
 import com.example.carrental.exception.UserAlreadyExistsException;
 import com.example.carrental.exception.UserNotFoundException;
+import com.example.carrental.mapper.CarMapper;
 import com.example.carrental.repository.PaymentsRepository;
 import com.example.carrental.repository.RentalRepository;
 import com.example.carrental.repository.UserRepository;
@@ -29,13 +30,15 @@ public class UserService {
     private final UserRepository userRepository;
     private final RentalRepository rentalRepository;
     private final PaymentsRepository paymentsRepository;
+    private final CarMapper carmapper;
 
     @Autowired
     public UserService(UserRepository userRepository, RentalRepository rentalRepository,
-            PaymentsRepository paymentsRepository) {
+            PaymentsRepository paymentsRepository, CarMapper carmapper) {
         this.userRepository = userRepository;
         this.rentalRepository = rentalRepository;
         this.paymentsRepository = paymentsRepository;
+        this.carmapper = carmapper;
     }
 
     @Transactional
@@ -111,7 +114,7 @@ public class UserService {
         RentalResponseDto dto = new RentalResponseDto();
 
         dto.setId(rental.getId());
-        dto.setCarId(rental.getCar().getId());
+        dto.setCar(carmapper.convertToCarSummaryDto(rental.getCar()));
         dto.setStatus(rental.getStatus());
         dto.setPricePerDay(rental.getPricePerDay());
         dto.setTotalPrice(rental.getTotalPrice());

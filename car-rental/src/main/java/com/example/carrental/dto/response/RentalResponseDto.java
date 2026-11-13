@@ -1,13 +1,15 @@
+
 package com.example.carrental.dto.response;
 
-import com.example.carrental.enums.RentalStatus;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+
+import com.example.carrental.enums.RentalStatus;
 
 public class RentalResponseDto {
 
     private Long id;
-    private Long carId;
+    private CarSummaryDto car;
     private RentalStatus status;
     private BigDecimal pricePerDay;
     private BigDecimal totalPrice;
@@ -26,12 +28,12 @@ public class RentalResponseDto {
         this.id = id;
     }
 
-    public Long getCarId() {
-        return carId;
+    public CarSummaryDto getCar() {
+        return car;
     }
 
-    public void setCarId(Long carId) {
-        this.carId = carId;
+    public void setCar(CarSummaryDto car) {
+        this.car = car;
     }
 
     public RentalStatus getStatus() {

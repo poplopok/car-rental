@@ -35,4 +35,9 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(exception.getMessage());
     }
 
+    @ExceptionHandler(CarNotFoundException.class)
+    public ResponseEntity<String> handleCaryNotFound(CarNotFoundException exception) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(exception.getMessage());
+    }
+
 }

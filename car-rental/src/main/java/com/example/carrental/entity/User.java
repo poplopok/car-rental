@@ -32,6 +32,9 @@ public class User {
     @Column(nullable = false, unique = true)
     private String phone;
 
+    @Column(nullable = false)
+    private String password;
+
     private LocalDate dateOfBirth;
 
     public Long getId() {
@@ -92,6 +95,14 @@ public class User {
 
     public LocalDate getDateOfBirth() {
         return dateOfBirth;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
     }
 
     public void setDateOfBirth(LocalDate dateOfBirth) {

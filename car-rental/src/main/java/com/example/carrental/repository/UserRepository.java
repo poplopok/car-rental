@@ -1,5 +1,7 @@
 package com.example.carrental.repository;
 
+import java.util.Optional;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.example.carrental.entity.User;
@@ -8,4 +10,5 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     public boolean existsByUsernameOrEmailOrPhone(String username, String email, String phone);
 
+    Optional<User> findByEmail(String email);
 }

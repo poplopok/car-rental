@@ -5,8 +5,8 @@ import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import com.example.carrental.dto.request.UserRequestDto;
 import com.example.carrental.dto.response.PaymentResponseDto;
 import com.example.carrental.dto.response.RentalResponseDto;
 import com.example.carrental.dto.response.UserResponseDto;
@@ -15,14 +15,12 @@ import com.example.carrental.entity.Rental;
 import com.example.carrental.entity.User;
 import com.example.carrental.exception.PaymentNotFoundException;
 import com.example.carrental.exception.RentalNotFoundException;
-import com.example.carrental.exception.UserAlreadyExistsException;
 import com.example.carrental.exception.UserNotFoundException;
 import com.example.carrental.mapper.CarMapper;
+import com.example.carrental.mapper.UserMapper;
 import com.example.carrental.repository.PaymentsRepository;
 import com.example.carrental.repository.RentalRepository;
 import com.example.carrental.repository.UserRepository;
-
-import jakarta.transaction.Transactional;
 
 @Service
 public class UserService {
@@ -31,43 +29,17 @@ public class UserService {
     private final RentalRepository rentalRepository;
     private final PaymentsRepository paymentsRepository;
     private final CarMapper carmapper;
+    private final UserMapper userMapper;
 
     @Autowired
     public UserService(UserRepository userRepository, RentalRepository rentalRepository,
-            PaymentsRepository paymentsRepository, CarMapper carmapper) {
+            PaymentsRepository paymentsRepository, CarMapper carmapper, UserMapper userMapper) {
         this.userRepository = userRepository;
         this.rentalRepository = rentalRepository;
         this.paymentsRepository = paymentsRepository;
         this.carmapper = carmapper;
-    }
+        this.userMapper = userMapper;
 
-    @Transactional
-    public UserResponseDto createUser(UserRequestDto request) {
-        User user = new User();
-        user.setDateOfBirth(request.getDateOfBirth());
-        user.setEmail(request.getEmail());
-        user.setFirstName(request.getFirstName());
-        user.setLastName(request.getLastName());
-        user.setPhone(request.getPhone());
-        user.setUsername(request.getUsername());
-
-        if (userRepository.existsByUsernameOrEmailOrPhone(user.getUsername(), user.getEmail(), user.getPhone())) {
-            throw new UserAlreadyExistsException("Username already exists");
-        }
-
-        User savedUser = userRepository.save(user);
-
-        UserResponseDto response = new UserResponseDto();
-
-        response.setId(savedUser.getId());
-        response.setDateOfBirth(savedUser.getDateOfBirth());
-        response.setEmail(savedUser.getEmail());
-        response.setFirstName(savedUser.getFirstName());
-        response.setLastName(savedUser.getLastName());
-        response.setPhone(savedUser.getPhone());
-        response.setUsername(savedUser.getUsername());
-
-        return response;
     }
 
     public UserResponseDto findUserById(Long id) {
@@ -88,6 +60,14 @@ public class UserService {
         response.setUsername(foundUser.getUsername());
 
         return response;
+    }
+
+    @Transactional(readOnly = true)
+    public UserResponseDto getUserById(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException("User not found"));
+
+        return userMapper.convertToUserResponseDto(user);
     }
 
     public String deleteUserById(Long id) {

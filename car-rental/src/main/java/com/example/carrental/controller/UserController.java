@@ -2,18 +2,13 @@ package com.example.carrental.controller;
 
 import java.util.List;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.example.carrental.dto.request.UserRequestDto;
 import com.example.carrental.dto.response.PaymentResponseDto;
 import com.example.carrental.dto.response.RentalResponseDto;
 import com.example.carrental.dto.response.UserResponseDto;
@@ -25,45 +20,43 @@ public class UserController {
 
     private final UserService userService;
 
-    @Autowired
     public UserController(UserService userService) {
         this.userService = userService;
     }
 
-    @PostMapping
-    public ResponseEntity<UserResponseDto> createUser(
-            @RequestBody UserRequestDto request) {
+    @GetMapping("/me")
+    public ResponseEntity<UserResponseDto> getCurrentUser(Authentication authentication) {
+        Long userId = (Long) authentication.getPrincipal();
 
-        UserResponseDto response = userService.createUser(request);
+        UserResponseDto user = userService.findUserById(userId);
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity.ok(user);
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<UserResponseDto> findUserById(@PathVariable Long id) {
-        UserResponseDto response = userService.findUserById(id);
+    @DeleteMapping("/me")
+    public ResponseEntity<String> deleteCurrentUser(Authentication authentication) {
+        Long userId = (Long) authentication.getPrincipal();
 
-        return ResponseEntity.status(HttpStatus.OK).body(response);
+        String response = userService.deleteUserById(userId);
+
+        return ResponseEntity.ok(response);
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<String> deleteUserById(@PathVariable Long id) {
-        String response = userService.deleteUserById(id);
+    @GetMapping("/me/rentals")
+    public ResponseEntity<List<RentalResponseDto>> getCurrentUserRentals(Authentication authentication) {
+        Long userId = (Long) authentication.getPrincipal();
 
-        return ResponseEntity.status(HttpStatus.OK).body(response);
+        List<RentalResponseDto> response = userService.getRentalsById(userId);
+
+        return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/{id}/rentals")
-    public ResponseEntity<List<RentalResponseDto>> getRentalsById(@PathVariable Long id) {
-        List<RentalResponseDto> response = userService.getRentalsById(id);
+    @GetMapping("/me/payments")
+    public ResponseEntity<List<PaymentResponseDto>> getCurrentUserPayments(Authentication authentication) {
+        Long userId = (Long) authentication.getPrincipal();
 
-        return ResponseEntity.status(HttpStatus.OK).body(response);
-    }
+        List<PaymentResponseDto> response = userService.getPaymentsById(userId);
 
-    @GetMapping("/{id}/payments")
-    public ResponseEntity<List<PaymentResponseDto>> getPaymentsById(@PathVariable Long id) {
-        List<PaymentResponseDto> response = userService.getPaymentsById(id);
-
-        return ResponseEntity.status(HttpStatus.OK).body(response);
+        return ResponseEntity.ok(response);
     }
 }

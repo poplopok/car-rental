@@ -10,6 +10,7 @@ public class UserRequestDto {
     private String email;
     private String phone;
     private LocalDate dateOfBirth;
+    private String password;
 
     public UserRequestDto() {
     }
@@ -28,6 +29,14 @@ public class UserRequestDto {
 
     public void setLastName(String lastName) {
         this.lastName = lastName;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
     }
 
     public String getUsername() {

@@ -1,6 +1,8 @@
 
 package com.example.carrental.service;
 
+import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -44,10 +46,26 @@ public class RentalService {
         Car car = carRepository.findById(request.getCarId())
                 .orElseThrow(() -> new RuntimeException("Car not found"));
 
+        BigDecimal pricePerDay = car.getPricePerDay();
+
+        long hours = Duration.between(
+                request.getStartTime(),
+                request.getPlannedEndTime()).toHours();
+
+        long days = (long) Math.ceil(hours / 24.0);
+
+        if (days < 1) {
+            days = 1;
+        }
+
+        BigDecimal totalPrice = pricePerDay.multiply(BigDecimal.valueOf(days));
+
         Rental rental = new Rental();
 
         rental.setUser(user);
         rental.setCar(car);
+        rental.setPricePerDay(pricePerDay);
+        rental.setTotalPrice(totalPrice);
         rental.setStartTime(request.getStartTime());
         rental.setPlannedEndTime(request.getPlannedEndTime());
         rental.setStatus(RentalStatus.PENDING);

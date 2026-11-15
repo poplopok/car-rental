@@ -19,7 +19,8 @@ public class CarService {
 
     @GetMapping
     public List<CarResponseDto> getAllCars() {
-        List<CarResponseDto> cars = carRepository.findAll().stream().map(this::convertToCarResponseDto).toList();
+        List<CarResponseDto> cars = carRepository.findAllWithCategory().stream().map(this::convertToCarResponseDto)
+                .toList();
         return cars;
     }
 

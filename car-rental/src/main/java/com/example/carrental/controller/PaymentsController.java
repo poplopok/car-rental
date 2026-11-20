@@ -3,6 +3,7 @@ package com.example.carrental.controller;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import com.example.carrental.dto.request.PaymentRequestDto;
@@ -23,18 +24,22 @@ public class PaymentsController {
     @PostMapping("/rentals/{rentalId}")
     public ResponseEntity<PaymentResponseDto> createPayment(
             @PathVariable Long rentalId,
-            @RequestBody PaymentRequestDto request) {
+            @RequestBody PaymentRequestDto request,
+            Authentication authentication) {
 
-        PaymentResponseDto response = paymentService.createPayment(rentalId, request);
+        Long userId = (Long) authentication.getPrincipal();
+
+        PaymentResponseDto response = paymentService.createPayment(rentalId, userId, request);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<PaymentResponseDto> getPaymentById(
-            @PathVariable Long id) {
+            @PathVariable Long id, Authentication authentication) {
+        Long userId = (Long) authentication.getPrincipal();
 
-        PaymentResponseDto response = paymentService.getPaymentById(id);
+        PaymentResponseDto response = paymentService.getPaymentById(id, userId);
 
         return ResponseEntity.ok(response);
     }

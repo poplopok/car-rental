@@ -42,7 +42,7 @@ public class CarService {
         dto.setPricePerDay(car.getPricePerDay());
         dto.setLatitude(car.getLatitude());
         dto.setLongitude(car.getLongitude());
-
+        dto.setImageUrl(car.getImageUrl());
         return dto;
     }
 

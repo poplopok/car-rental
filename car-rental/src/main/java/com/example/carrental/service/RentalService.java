@@ -13,7 +13,8 @@ import com.example.carrental.entity.Car;
 import com.example.carrental.entity.Rental;
 import com.example.carrental.entity.User;
 import com.example.carrental.enums.RentalStatus;
-import com.example.carrental.mapper.CarMapper;
+import com.example.carrental.exception.ForbiddenException;
+import com.example.carrental.mapper.RentalMapper;
 import com.example.carrental.repository.CarRepository;
 import com.example.carrental.repository.RentalRepository;
 import com.example.carrental.repository.UserRepository;
@@ -24,21 +25,25 @@ public class RentalService {
     private final RentalRepository rentalRepository;
     private final UserRepository userRepository;
     private final CarRepository carRepository;
-    private final CarMapper carmapper;
+    private final RentalMapper rentalMapper;
 
     public RentalService(
             RentalRepository rentalRepository,
             UserRepository userRepository,
             CarRepository carRepository,
-            CarMapper carmapper) {
+            RentalMapper rentalMapper) {
         this.rentalRepository = rentalRepository;
         this.userRepository = userRepository;
         this.carRepository = carRepository;
-        this.carmapper = carmapper;
+        this.rentalMapper = rentalMapper;
 
     }
 
-    public RentalResponseDto createRental(RentalRequestDto request) {
+    public RentalResponseDto createRental(RentalRequestDto request, Long userId) {
+
+        if (!userId.equals(request.getUserId())) {
+            throw new ForbiddenException("Access denied");
+        }
 
         User user = userRepository.findById(request.getUserId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -72,7 +77,7 @@ public class RentalService {
 
         Rental savedRental = rentalRepository.save(rental);
 
-        return convertToRentalResponseDto(savedRental);
+        return rentalMapper.convertToRentalResponseDto(savedRental);
     }
 
     public List<RentalResponseDto> getAllRentals(Long userId) {
@@ -86,44 +91,28 @@ public class RentalService {
         }
 
         return rentals.stream()
-                .map(this::convertToRentalResponseDto)
+                .map(this.rentalMapper::convertToRentalResponseDto)
                 .toList();
     }
 
-    public RentalResponseDto getRentalById(Long id) {
+    public RentalResponseDto getRentalById(Long id, Long userId) {
 
-        Rental rental = rentalRepository.findById(id)
+        Rental rental = rentalRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("Rental not found"));
 
-        return convertToRentalResponseDto(rental);
+        return rentalMapper.convertToRentalResponseDto(rental);
     }
 
-    public RentalResponseDto cancelRental(Long id) {
+    public RentalResponseDto cancelRental(Long id, Long userId) {
 
-        Rental rental = rentalRepository.findById(id)
+        Rental rental = rentalRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("Rental not found"));
 
         rental.setStatus(RentalStatus.CANCELLED);
 
         Rental savedRental = rentalRepository.save(rental);
 
-        return convertToRentalResponseDto(savedRental);
-    }
-
-    private RentalResponseDto convertToRentalResponseDto(Rental rental) {
-
-        RentalResponseDto dto = new RentalResponseDto();
-
-        dto.setId(rental.getId());
-        dto.setCar(carmapper.convertToCarSummaryDto(rental.getCar()));
-        dto.setStatus(rental.getStatus());
-        dto.setPricePerDay(rental.getPricePerDay());
-        dto.setTotalPrice(rental.getTotalPrice());
-        dto.setStartTime(rental.getStartTime());
-        dto.setPlannedEndTime(rental.getPlannedEndTime());
-        dto.setActualEndTime(rental.getEndTime());
-
-        return dto;
+        return rentalMapper.convertToRentalResponseDto(savedRental);
     }
 
 }

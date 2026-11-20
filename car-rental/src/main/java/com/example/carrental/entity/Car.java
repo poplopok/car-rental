@@ -37,6 +37,9 @@ public class Car {
     @Column(nullable = false)
     private BigDecimal longitude;
 
+    @Column(name = "image_url")
+    private String imageUrl;
+
     public Car() {
     }
 
@@ -66,6 +69,14 @@ public class Car {
 
     public String getBrand() {
         return brand;
+    }
+
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
     }
 
     public void setBrand(String brand) {

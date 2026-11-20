@@ -14,6 +14,7 @@ public class CarResponseDto {
     private BigDecimal pricePerDay;
     private BigDecimal latitude;
     private BigDecimal longitude;
+    private String imageUrl;
 
     public CarResponseDto() {
     }
@@ -76,6 +77,14 @@ public class CarResponseDto {
 
     public BigDecimal getLatitude() {
         return latitude;
+    }
+
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
     }
 
     public void setLatitude(BigDecimal latitude) {

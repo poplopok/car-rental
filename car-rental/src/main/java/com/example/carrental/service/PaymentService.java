@@ -1,6 +1,7 @@
 
 package com.example.carrental.service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -28,9 +29,9 @@ public class PaymentService {
     }
 
     @Transactional
-    public PaymentResponseDto createPayment(Long rentalId, PaymentRequestDto request) {
+    public PaymentResponseDto createPayment(Long rentalId, Long userId, PaymentRequestDto request) {
 
-        Rental rental = rentalRepository.findById(rentalId)
+        Rental rental = rentalRepository.findByIdAndUserId(rentalId, userId)
                 .orElseThrow(() -> new RuntimeException("Rental not found"));
 
         Payment payment = new Payment();
@@ -39,15 +40,16 @@ public class PaymentService {
         payment.setPaymentMethod(request.getPaymentMethod());
         payment.setAmount(rental.getTotalPrice());
         payment.setStatus(PaymentStatus.PENDING);
+        payment.setCreatedAt(LocalDateTime.now());
 
         Payment savedPayment = paymentRepository.save(payment);
 
         return convertToPaymentResponseDto(savedPayment);
     }
 
-    public PaymentResponseDto getPaymentById(Long id) {
+    public PaymentResponseDto getPaymentById(Long id, Long userId) {
 
-        Payment payment = paymentRepository.findById(id)
+        Payment payment = paymentRepository.findByIdAndRentalUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("Payment not found"));
 
         return convertToPaymentResponseDto(payment);

@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import com.example.carrental.dto.request.RentalRequestDto;
@@ -23,17 +24,19 @@ public class RentalController {
 
     @PostMapping
     public ResponseEntity<RentalResponseDto> createRental(
-            @RequestBody RentalRequestDto request) {
+            @RequestBody RentalRequestDto request, Authentication authentication) {
 
-        RentalResponseDto response = rentalService.createRental(request);
+        Long id = (Long) authentication.getPrincipal();
+        RentalResponseDto response = rentalService.createRental(request, id);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @GetMapping
-    public ResponseEntity<List<RentalResponseDto>> getAllRentals(
-            @RequestParam(required = false) Long userId) {
+    public ResponseEntity<List<RentalResponseDto>> getAllUserRentals(
+            Authentication authentication) {
 
+        Long userId = (Long) authentication.getPrincipal();
         List<RentalResponseDto> response = rentalService.getAllRentals(userId);
 
         return ResponseEntity.ok(response);
@@ -41,18 +44,21 @@ public class RentalController {
 
     @GetMapping("/{id}")
     public ResponseEntity<RentalResponseDto> getRentalById(
-            @PathVariable Long id) {
+            @PathVariable Long id,
+            Authentication authentication) {
 
-        RentalResponseDto response = rentalService.getRentalById(id);
+        Long userId = (Long) authentication.getPrincipal();
+        RentalResponseDto response = rentalService.getRentalById(id, userId);
 
         return ResponseEntity.ok(response);
     }
 
     @PostMapping("/{id}/cancel")
     public ResponseEntity<RentalResponseDto> cancelRental(
-            @PathVariable Long id) {
+            @PathVariable Long id, Authentication authentication) {
 
-        RentalResponseDto response = rentalService.cancelRental(id);
+        Long userId = (Long) authentication.getPrincipal();
+        RentalResponseDto response = rentalService.cancelRental(id, userId);
 
         return ResponseEntity.ok(response);
     }

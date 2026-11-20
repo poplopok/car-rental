@@ -15,29 +15,22 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(exception.getMessage());
     }
 
-    @ExceptionHandler(UserNotFoundException.class)
-    public ResponseEntity<String> handleUserNotFound(UserNotFoundException exception) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(exception.getMessage());
+    @ExceptionHandler({
+            UserNotFoundException.class,
+            RentalNotFoundException.class,
+            PaymentNotFoundException.class,
+            CategoryNotFoundException.class,
+            CarNotFoundException.class
+    })
+    public ResponseEntity<String> handleNotFound(RuntimeException exception) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(exception.getMessage());
     }
 
-    @ExceptionHandler(RentalNotFoundException.class)
-    public ResponseEntity<String> handleRentalNotFound(RentalNotFoundException exception) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(exception.getMessage());
-    }
-
-    @ExceptionHandler(PaymentNotFoundException.class)
-    public ResponseEntity<String> handlePaymentNotFound(PaymentNotFoundException exception) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(exception.getMessage());
-    }
-
-    @ExceptionHandler(CategoryNotFoundException.class)
-    public ResponseEntity<String> handleCategoryNotFound(CategoryNotFoundException exception) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(exception.getMessage());
-    }
-
-    @ExceptionHandler(CarNotFoundException.class)
-    public ResponseEntity<String> handleCaryNotFound(CarNotFoundException exception) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(exception.getMessage());
+    @ExceptionHandler(ForbiddenException.class)
+    public ResponseEntity<String> handleForbidden(ForbiddenException exception) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(exception.getMessage());
     }
 
     @ExceptionHandler(InvalidCredentialsException.class)

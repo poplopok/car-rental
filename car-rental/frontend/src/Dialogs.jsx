@@ -1,15 +1,31 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowRight, CalendarDays, CarFront, X } from 'lucide-react'
-import { carImage, carName, formatDate, localInput, price } from './catalog'
+import { ArrowRight, CalendarDays, CarFront, MapPin, Tag, X } from 'lucide-react'
+import { carImage, carName, coordinates, formatDate, localInput, price } from './catalog'
+import { formatDistance } from './location'
+
+function catalogPhotoUrl(value) {
+  if (typeof value !== 'string') return null
+  try {
+    const url = new URL(value)
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : null
+  } catch {
+    return null
+  }
+}
 
 export function CarPhoto({ car }) {
-  const image = carImage(car)
+  const [failedSources, setFailedSources] = useState([])
+  const sources = [catalogPhotoUrl(car?.imageUrl), carImage(car)]
+  const image = sources.find((source) => source && !failedSources.includes(source))
+
   return <div className="car-photo">
-    {image ? <img src={image} alt="" /> : <CarFront size={39} strokeWidth={1.4} aria-hidden="true" />}
+    {image ? <img key={image} src={image} alt="" loading="lazy" decoding="async"
+      onError={() => setFailedSources((previous) => [...previous, image])} />
+      : <CarFront size={39} strokeWidth={1.4} aria-hidden="true" />}
   </div>
 }
 
-export function Modal({ title, onClose, busy, children }) {
+export function Modal({ title, onClose, busy, className = '', children }) {
   const ref = useRef(null)
   useEffect(() => {
     const dialog = ref.current
@@ -17,7 +33,7 @@ export function Modal({ title, onClose, busy, children }) {
     return () => dialog.close()
   }, [])
 
-  return <dialog ref={ref} className="modal" aria-labelledby="dialog-title"
+  return <dialog ref={ref} className={'modal ' + className} aria-labelledby="dialog-title"
     onCancel={(event) => { event.preventDefault(); if (!busy) onClose() }}
     onClick={(event) => { if (!busy && event.target === event.currentTarget) onClose() }}>
     <div className="dialog-inner">
@@ -28,6 +44,25 @@ export function Modal({ title, onClose, busy, children }) {
       {children}
     </div>
   </dialog>
+}
+
+const categoryLabels = { Economy: 'Эконом', Comfort: 'Комфорт', Business: 'Бизнес', SUV: 'Кроссовер', Premium: 'Премиум' }
+
+export function CarDetails({ car, distance, onBook, onMap }) {
+  const hasLocation = coordinates(car) !== null
+  return <>
+    <div className="car-detail-photo"><CarPhoto car={car} /></div>
+    <dl className="car-specs">
+      <div><dt><Tag size={16} /> Класс</dt><dd>{categoryLabels[car.categoryName] || car.categoryName || 'Не указан'}</dd></div>
+      <div><dt><CalendarDays size={16} /> Год выпуска</dt><dd>{car.year ?? 'Не указан'}</dd></div>
+      {distance != null && <div><dt><MapPin size={16} /> Расстояние</dt><dd>{formatDistance(distance)}</dd></div>}
+    </dl>
+    <div className="car-detail-actions">
+      <div className="car-detail-price"><strong>{price(car.pricePerDay)}</strong><span>в сутки</span></div>
+      {hasLocation && <button className="secondary" type="button" onClick={onMap}><MapPin size={17} /> На карте</button>}
+      <button className="primary" type="button" onClick={onBook}>Забронировать <ArrowRight size={17} /></button>
+    </div>
+  </>
 }
 
 export function DateFields({ dates, onChange }) {

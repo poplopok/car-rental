@@ -27,12 +27,13 @@ export function saveToken(token) {
   else sessionStorage.removeItem(sessionKey)
 }
 
-export async function request(path, { token, body, method = 'GET', signal } = {}) {
+export async function request(path, { token, body, method = 'GET', signal, cache } = {}) {
   let response
   try {
     response = await fetch(base + path, {
       method,
       signal,
+      cache,
       headers: {
         Accept: 'application/json',
         ...(body ? { 'Content-Type': 'application/json' } : {}),

@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,8 +25,19 @@ public class CarController {
     }
 
     @GetMapping
-    public ResponseEntity<List<CarResponseDto>> getAllCategories() {
-        List<CarResponseDto> carResponseDtos = carService.getAllCars();
+    public ResponseEntity<List<CarResponseDto>> getAllCars(
+            Authentication authentication) {
+        List<CarResponseDto> carResponseDtos;
+
+        if (authentication == null) {
+            carResponseDtos = carService.getAllCars();
+            System.out.println(authentication);
+
+        } else {
+            System.out.println(authentication);
+            Long userId = (Long) authentication.getPrincipal();
+            carResponseDtos = carService.getAllCars(userId);
+        }
 
         return ResponseEntity.ok(carResponseDtos);
     }

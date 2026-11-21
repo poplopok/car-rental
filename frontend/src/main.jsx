@@ -20,6 +20,8 @@ const demoLink = '?demo=1'
 const liveLink = window.location.pathname
 const emptyList = []
 const demoUser = { firstName: 'Демо', lastName: 'Пользователь' }
+const demoCatalog = { cars: demoCars }
+const loadingCatalog = { loading: true }
 
 function StateCard({ icon: Icon = CarFront, title, detail, children }) {
   return <div className="state-card">
@@ -45,7 +47,8 @@ function CarCard({ car, distance, active, onDetails }) {
 }
 
 function App() {
-  const [catalog, setCatalog] = useState(() => isDemo ? { cars: demoCars } : { loading: true })
+  const [catalogResult, setCatalogResult] = useState(null)
+  const [catalogAttempt, setCatalogAttempt] = useState(0)
   const [category, setCategory] = useState('')
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState('default')
@@ -67,6 +70,8 @@ function App() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
 
+  const hasCurrentCatalog = catalogResult?.token === token && catalogResult?.attempt === catalogAttempt
+  const catalog = isDemo ? demoCatalog : (hasCurrentCatalog ? catalogResult : loadingCatalog)
   const cars = catalog.cars || emptyList
   const categories = useMemo(() => {
     const entries = new Map()
@@ -103,21 +108,24 @@ function App() {
     setTrips({})
   }, [])
 
-  const loadCatalog = useCallback(async (signal) => {
-    if (isDemo) return
-    setCatalog({ loading: true })
-    try {
-      setCatalog({ cars: await request('/cars', { signal }) })
-    } catch (failure) {
-      if (failure.name !== 'AbortError') setCatalog({ error: failure.message })
-    }
-  }, [])
-
   useEffect(() => {
+    if (isDemo) return
     const controller = new AbortController()
-    loadCatalog(controller.signal)
+    const { signal } = controller
+    const scope = { token, attempt: catalogAttempt }
+
+    async function loadCatalog() {
+      try {
+        const cars = await request('/cars', { token, signal, cache: 'no-store' })
+        if (!signal.aborted) setCatalogResult({ ...scope, cars })
+      } catch (failure) {
+        if (!signal.aborted) setCatalogResult({ ...scope, error: failure.message })
+      }
+    }
+
+    loadCatalog()
     return () => controller.abort()
-  }, [loadCatalog])
+  }, [token, catalogAttempt])
 
   const loadProfile = useCallback(async (signal) => {
     if (!token) return
@@ -333,7 +341,7 @@ function App() {
           </div>
           {catalog.loading && <StateCard title="Загружаем автопарк" />}
           {catalog.error && <StateCard icon={Compass} title="Автопарк недоступен" detail={catalog.error}>
-            <button className="secondary" type="button" onClick={() => loadCatalog()}>Повторить</button>
+            <button className="secondary" type="button" onClick={() => setCatalogAttempt((current) => current + 1)}>Повторить</button>
             <a href={demoLink}>Открыть демо <ArrowUpRight size={15} /></a>
           </StateCard>}
           {catalog.cars && !visible.length && <StateCard title={cars.length ? 'Машины не найдены' : 'Автопарк пока пуст'} detail={cars.length ? 'Измените поиск или класс авто.' : 'Машины появятся здесь после добавления в автопарк.'}>

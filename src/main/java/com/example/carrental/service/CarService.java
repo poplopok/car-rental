@@ -3,7 +3,6 @@ package com.example.carrental.service;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
-import org.springframework.web.bind.annotation.GetMapping;
 
 import com.example.carrental.dto.response.CarResponseDto;
 import com.example.carrental.entity.Car;
@@ -17,14 +16,20 @@ public class CarService {
         this.carRepository = carRepository;
     }
 
-    @GetMapping
-    public List<CarResponseDto> getAllCars() {
-        List<CarResponseDto> cars = carRepository.findAllWithCategory().stream().map(this::convertToCarResponseDto)
+    public List<CarResponseDto> getAllCars(Long userId) {
+        List<CarResponseDto> cars = carRepository.findAllAvailableCarsWithCategory(userId).stream()
+                .map(this::convertToCarResponseDto)
                 .toList();
         return cars;
     }
 
-    @GetMapping
+    public List<CarResponseDto> getAllCars() {
+        List<CarResponseDto> cars = carRepository.findAllWithCategory().stream()
+                .map(this::convertToCarResponseDto)
+                .toList();
+        return cars;
+    }
+
     public CarResponseDto findCarById(Long id) {
         CarResponseDto car = convertToCarResponseDto(carRepository.findById(id).orElseThrow());
 

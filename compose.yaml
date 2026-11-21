@@ -1,0 +1,25 @@
+services:
+  db:
+    image: postgres:17
+    container_name: car-rental-db
+    environment:
+      POSTGRES_DB: car_rental
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - car_rental_pgdata:/var/lib/postgresql/data
+
+  backend:
+  build: .
+  container_name: car-rental-backend
+  ports:
+    - "8080:8080"
+  depends_on:
+    - db
+  environment:
+    SPRING_PROFILES_ACTIVE: docker
+
+volumes:
+  car_rental_pgdata:

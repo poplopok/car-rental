@@ -1,12 +1,15 @@
 
 package com.example.carrental.dto.response;
 
+import com.example.carrental.enums.CarStatus;
+
 public class CarSummaryDto {
 
     private Long id;
     private String brand;
     private String model;
     private Integer year;
+    private CarStatus status;
 
     public CarSummaryDto() {
     }
@@ -29,6 +32,14 @@ public class CarSummaryDto {
 
     public String getModel() {
         return model;
+    }
+
+    public CarStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(CarStatus status) {
+        this.status = status;
     }
 
     public void setModel(String model) {

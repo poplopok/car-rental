@@ -3,6 +3,8 @@ package com.example.carrental.entity;
 import java.math.BigDecimal;
 import java.util.List;
 
+import com.example.carrental.enums.CarStatus;
+
 import jakarta.persistence.*;
 
 @Entity
@@ -37,6 +39,10 @@ public class Car {
     @Column(nullable = false)
     private BigDecimal longitude;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private CarStatus status;
+
     @Column(name = "image_url")
     private String imageUrl;
 
@@ -69,6 +75,14 @@ public class Car {
 
     public String getBrand() {
         return brand;
+    }
+
+    public CarStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(CarStatus status) {
+        this.status = status;
     }
 
     public String getImageUrl() {

@@ -3,6 +3,8 @@ package com.example.carrental.dto.response;
 
 import java.math.BigDecimal;
 
+import com.example.carrental.enums.CarStatus;
+
 public class CarResponseDto {
 
     private Long id;
@@ -15,6 +17,7 @@ public class CarResponseDto {
     private BigDecimal latitude;
     private BigDecimal longitude;
     private String imageUrl;
+    private CarStatus status;
 
     public CarResponseDto() {
     }
@@ -37,6 +40,14 @@ public class CarResponseDto {
 
     public String getCategoryName() {
         return categoryName;
+    }
+
+    public CarStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(CarStatus status) {
+        this.status = status;
     }
 
     public void setCategoryName(String categoryName) {

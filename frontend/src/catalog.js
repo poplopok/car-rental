@@ -10,6 +10,10 @@ export const demoCars = [
 const money = new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', minimumFractionDigits: 0, maximumFractionDigits: 2 })
 export const price = (value) => value == null ? '—' : money.format(Number(value))
 export const carName = (car) => [car?.brand, car?.model].filter(Boolean).join(' ') || 'Автомобиль'
+const categoryNames = { Economy: 'Эконом', Comfort: 'Комфорт', Business: 'Бизнес', SUV: 'Кроссоверы', Premium: 'Премиум' }
+export const categoryName = (value) => categoryNames[value] || value
+export const carStatusNames = { AVAILABLE: 'Свободен', RENTED: 'Занят', MAINTENANCE: 'На обслуживании' }
+export const isBookable = (car) => !car.status || car.status === 'AVAILABLE'
 const carImages = {
   'kia rio': 'rio',
   'volkswagen polo': 'polo',

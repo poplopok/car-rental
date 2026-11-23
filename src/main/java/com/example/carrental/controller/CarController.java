@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -30,16 +31,25 @@ public class CarController {
         List<CarResponseDto> carResponseDtos;
 
         if (authentication == null) {
-            carResponseDtos = carService.getAllCars();
+            carResponseDtos = carService.getAllAvailableCars();
             System.out.println(authentication);
 
         } else {
             System.out.println(authentication);
             Long userId = (Long) authentication.getPrincipal();
-            carResponseDtos = carService.getAllCars(userId);
+            carResponseDtos = carService.getAllAvailableCars(userId);
         }
 
         return ResponseEntity.ok(carResponseDtos);
+    }
+
+    @GetMapping("/all")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<List<CarResponseDto>> getAllCars() {
+        List<CarResponseDto> carResponseDtos = carService.getAllCars();
+
+        return ResponseEntity.ok(carResponseDtos);
+
     }
 
     @GetMapping("/{id}")

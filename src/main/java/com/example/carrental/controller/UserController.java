@@ -1,16 +1,14 @@
 package com.example.carrental.controller;
 
-import java.util.List;
-
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.example.carrental.dto.response.PaymentResponseDto;
-import com.example.carrental.dto.response.RentalResponseDto;
 import com.example.carrental.dto.response.UserResponseDto;
 import com.example.carrental.service.UserService;
 
@@ -33,6 +31,15 @@ public class UserController {
         return ResponseEntity.ok(user);
     }
 
+    @GetMapping
+    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
+    public ResponseEntity<UserResponseDto> getCurrentUser(@RequestParam Long userId) {
+
+        UserResponseDto user = userService.findUserById(userId);
+
+        return ResponseEntity.ok(user);
+    }
+
     @DeleteMapping("/me")
     public ResponseEntity<String> deleteCurrentUser(Authentication authentication) {
         Long userId = (Long) authentication.getPrincipal();
@@ -42,20 +49,11 @@ public class UserController {
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/me/rentals")
-    public ResponseEntity<List<RentalResponseDto>> getCurrentUserRentals(Authentication authentication) {
-        Long userId = (Long) authentication.getPrincipal();
+    @DeleteMapping
+    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
+    public ResponseEntity<String> deleteCurrentUser(@RequestParam Long userId) {
 
-        List<RentalResponseDto> response = userService.getRentalsById(userId);
-
-        return ResponseEntity.ok(response);
-    }
-
-    @GetMapping("/me/payments")
-    public ResponseEntity<List<PaymentResponseDto>> getCurrentUserPayments(Authentication authentication) {
-        Long userId = (Long) authentication.getPrincipal();
-
-        List<PaymentResponseDto> response = userService.getPaymentsById(userId);
+        String response = userService.deleteUserById(userId);
 
         return ResponseEntity.ok(response);
     }

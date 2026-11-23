@@ -1,4 +1,5 @@
-import { AtSign, CalendarDays, LogOut, Mail, Phone, UserRound } from 'lucide-react'
+import { AtSign, CalendarDays, LogOut, Mail, Phone, ShieldCheck, UserRound } from 'lucide-react'
+import { roleNames } from './api'
 
 const birthDate = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
 
@@ -8,7 +9,7 @@ function formatBirthday(value) {
   return Number.isNaN(date.getTime()) ? null : birthDate.format(date)
 }
 
-export default function Profile({ user, loading, error, onRetry, onLogout }) {
+export default function Profile({ user, role, loading, error, onRetry, onLogout, onDelete }) {
   const name = [user?.firstName, user?.lastName].filter(Boolean).join(' ')
   const initials = [user?.firstName?.[0], user?.lastName?.[0]].filter(Boolean).join('').toUpperCase()
   const fields = [
@@ -17,6 +18,7 @@ export default function Profile({ user, loading, error, onRetry, onLogout }) {
     { label: 'Электронная почта', icon: Mail, value: user?.email },
     { label: 'Телефон', icon: Phone, value: user?.phone },
     { label: 'Дата рождения', icon: CalendarDays, value: formatBirthday(user?.dateOfBirth) },
+    { label: 'Роль', icon: ShieldCheck, value: roleNames[role] },
   ]
 
   return <main className="profile-page">
@@ -41,6 +43,7 @@ export default function Profile({ user, loading, error, onRetry, onLogout }) {
       </div>}
       <div className="profile-actions">
         <button className="secondary" type="button" onClick={onLogout}><LogOut size={17} /> Выйти из аккаунта</button>
+        {user && <button className="account-delete" type="button" onClick={onDelete}>Удалить аккаунт</button>}
       </div>
     </section>
   </main>

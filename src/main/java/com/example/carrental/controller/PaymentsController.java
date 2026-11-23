@@ -3,6 +3,7 @@ package com.example.carrental.controller;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
@@ -35,6 +36,7 @@ public class PaymentsController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('USER')")
     public ResponseEntity<PaymentResponseDto> getPaymentById(
             @PathVariable Long id, Authentication authentication) {
         Long userId = (Long) authentication.getPrincipal();
@@ -43,4 +45,13 @@ public class PaymentsController {
 
         return ResponseEntity.ok(response);
     }
+
+    // @GetMapping
+    // @PreAuthorize("hasAnyRole('ADMIN')")
+    // public ResponseEntity<PaymentResponseDto> getPaymentById(
+    // @RequestParam Long paymentId) {
+    // PaymentResponseDto response = paymentService.getPaymentById(paymentId);
+
+    // return ResponseEntity.ok(response);
+    // }
 }

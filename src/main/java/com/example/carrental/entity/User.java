@@ -4,6 +4,8 @@ package com.example.carrental.entity;
 import java.time.LocalDate;
 import java.util.List;
 
+import com.example.carrental.enums.UserRole;
+
 import jakarta.persistence.*;
 
 @Entity
@@ -34,6 +36,10 @@ public class User {
 
     @Column(nullable = false)
     private String password;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private UserRole role;
 
     private LocalDate dateOfBirth;
 
@@ -91,6 +97,14 @@ public class User {
 
     public void setPhone(String phone) {
         this.phone = phone;
+    }
+
+    public UserRole getRole() {
+        return role;
+    }
+
+    public void setRole(UserRole role) {
+        this.role = role;
     }
 
     public LocalDate getDateOfBirth() {

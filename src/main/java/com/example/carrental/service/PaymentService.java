@@ -55,6 +55,14 @@ public class PaymentService {
         return convertToPaymentResponseDto(payment);
     }
 
+    public PaymentResponseDto getPaymentById(Long id) {
+
+        Payment payment = paymentRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Payment not found"));
+
+        return convertToPaymentResponseDto(payment);
+    }
+
     public List<PaymentResponseDto> getPaymentsByRentalId(Long rentalId) {
 
         List<Payment> payments = paymentRepository.findAllByRentalId(rentalId);

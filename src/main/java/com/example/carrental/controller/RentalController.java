@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
@@ -32,33 +33,61 @@ public class RentalController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    @GetMapping
-    public ResponseEntity<List<RentalResponseDto>> getAllUserRentals(
+    @GetMapping("/my")
+    public ResponseEntity<List<RentalResponseDto>> getMyRentals(
             Authentication authentication) {
 
         Long userId = (Long) authentication.getPrincipal();
-        List<RentalResponseDto> response = rentalService.getAllRentals(userId);
+        List<RentalResponseDto> response = rentalService.getAllRentalsByUserId(userId);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/my/{rentalId}")
+    public ResponseEntity<RentalResponseDto> getMyRental(
+            Authentication authentication, @PathVariable Long rentalId) {
+        Long userId = (Long) authentication.getPrincipal();
+        RentalResponseDto response = rentalService.getRentalByIdAndUserID(rentalId, userId);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping
+    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
+    public ResponseEntity<List<RentalResponseDto>> getRentalsByUserId(
+            @RequestParam Long userId) {
+
+        List<RentalResponseDto> response = rentalService.getAllRentalsByUserId(userId);
 
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
     public ResponseEntity<RentalResponseDto> getRentalById(
-            @PathVariable Long id,
-            Authentication authentication) {
+            @PathVariable Long id) {
 
-        Long userId = (Long) authentication.getPrincipal();
-        RentalResponseDto response = rentalService.getRentalById(id, userId);
+        RentalResponseDto response = rentalService.getRentalById(id);
 
         return ResponseEntity.ok(response);
     }
 
     @PostMapping("/{id}/cancel")
+    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
     public ResponseEntity<RentalResponseDto> cancelRental(
-            @PathVariable Long id, Authentication authentication) {
+            @PathVariable Long id) {
+
+        RentalResponseDto response = rentalService.cancelRentalById(id);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/me/cancel/{rentalId}")
+    public ResponseEntity<RentalResponseDto> cancelMyRental(
+            @PathVariable Long rentalId, Authentication authentication) {
 
         Long userId = (Long) authentication.getPrincipal();
-        RentalResponseDto response = rentalService.cancelRental(id, userId);
+        RentalResponseDto response = rentalService.cancelMyRental(rentalId, userId);
 
         return ResponseEntity.ok(response);
     }

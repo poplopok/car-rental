@@ -2,13 +2,16 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import {
   ArrowRight, ArrowUpRight, ChevronRight, CalendarDays, CarFront, ChevronDown, Compass, History, List,
-  LocateFixed, Map as MapIcon, MapPin, Search, UserRound,
+  LocateFixed, LogOut, Map as MapIcon, MapPin, Search, ShieldCheck, UserRound,
 } from 'lucide-react'
-import { isDemo, readToken, request, saveToken } from './api'
-import { carName, coordinates, defaultDates, demoCars, localInput, price } from './catalog'
+import { accountApi, authApi, fleetApi, isDemo, readToken, rentalApi, saveToken, sessionRole } from './api'
+import { carName, carStatusNames, categoryName, coordinates, defaultDates, demoCars, isBookable, localInput, price } from './catalog'
 import CarMap from './CarMap'
+import CustomerRental, { MyPaymentLookup } from './CustomerRental'
 import LocationForm from './LocationForm'
 import Profile from './Profile'
+import { ConfirmAction } from './Records'
+import StaffPanel from './StaffPanel'
 import { distanceKm, formatDistance } from './location'
 import { AuthForm, BookingForm, CarDetails, CarPhoto, DateForm, Modal, TripCard } from './Dialogs'
 import './style.css'
@@ -32,13 +35,15 @@ function StateCard({ icon: Icon = CarFront, title, detail, children }) {
   </div>
 }
 
-function CarCard({ car, distance, active, onDetails }) {
+function CarCard({ car, distance, active, showStatus, onDetails }) {
+  const status = carStatusNames[car.status] || car.status
   return <article className={'car-card' + (active ? ' selected' : '')}>
     <button className="car-card-main" type="button" onClick={onDetails} aria-haspopup="dialog">
       <CarPhoto car={car} />
       <span className="car-copy">
         <strong>{carName(car)}</strong>
-        <small>{[car.categoryName, car.year, distance == null ? null : formatDistance(distance)].filter(Boolean).join(' · ')}</small>
+        <small>{[categoryName(car.categoryName), car.year, distance == null ? null : formatDistance(distance)].filter(Boolean).join(' · ')}</small>
+        {status && (showStatus || !isBookable(car)) && <small className={isBookable(car) ? undefined : 'car-availability'}>{status}</small>}
         <span className="daily"><b>{price(car.pricePerDay)}</b><span> / сутки</span></span>
       </span>
       <span className="car-arrow icon-button" aria-hidden="true"><ChevronRight size={19} /></span>
@@ -49,16 +54,20 @@ function CarCard({ car, distance, active, onDetails }) {
 function App() {
   const [catalogResult, setCatalogResult] = useState(null)
   const [catalogAttempt, setCatalogAttempt] = useState(0)
+  const [fleetCategories, setFleetCategories] = useState([])
   const [category, setCategory] = useState('')
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState('default')
   const [position, setPosition] = useState(null)
   const [selectedId, selectCar] = useState(null)
   const [mapFocusId, setMapFocusId] = useState(null)
-  const [page, setPage] = useState('catalog')
+  const [token, setToken] = useState(() => isDemo ? null : readToken())
+  const role = sessionRole(token)
+  const isAdmin = role === 'ADMIN'
+  const isStaff = role === 'MANAGER' || isAdmin
+  const [page, setPage] = useState(() => isStaff ? 'staff' : 'catalog')
   const [mapVisible, setMapVisible] = useState(false)
   const [dates, setDates] = useState(defaultDates)
-  const [token, setToken] = useState(() => isDemo ? null : readToken())
   const [user, setUser] = useState(() => isDemo ? demoUser : null)
   const [profileState, setProfileState] = useState({})
   const [profileAttempt, setProfileAttempt] = useState(0)
@@ -69,15 +78,17 @@ function App() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const modalCarId = modal?.type === 'car' ? modal.car.id : null
+  const refreshCatalog = useCallback(() => setCatalogAttempt((current) => current + 1), [])
 
   const hasCurrentCatalog = catalogResult?.token === token && catalogResult?.attempt === catalogAttempt
   const catalog = isDemo ? demoCatalog : (hasCurrentCatalog ? catalogResult : loadingCatalog)
   const cars = catalog.cars || emptyList
   const categories = useMemo(() => {
-    const entries = new Map()
-    for (const car of cars) if (car.categoryName) entries.set(String(car.categoryId ?? car.categoryName), car.categoryName)
+    const entries = new Map(fleetCategories.map(({ id, name }) => [String(id), categoryName(name)]))
+    for (const car of cars) if (car.categoryName) entries.set(String(car.categoryId ?? car.categoryName), categoryName(car.categoryName))
     return [...entries]
-  }, [cars])
+  }, [cars, fleetCategories])
   const distances = useMemo(() => {
     const byCar = new Map()
     if (position) {
@@ -106,6 +117,8 @@ function App() {
     setUser(null)
     setProfileState({})
     setTrips({})
+    setModal(null)
+    setPage('catalog')
   }, [])
 
   useEffect(() => {
@@ -116,7 +129,8 @@ function App() {
 
     async function loadCatalog() {
       try {
-        const cars = await request('/cars', { token, signal, cache: 'no-store' })
+        const list = isAdmin ? fleetApi.all : fleetApi.list
+        const cars = await list(token, signal)
         if (!signal.aborted) setCatalogResult({ ...scope, cars })
       } catch (failure) {
         if (!signal.aborted) setCatalogResult({ ...scope, error: failure.message })
@@ -125,13 +139,32 @@ function App() {
 
     loadCatalog()
     return () => controller.abort()
-  }, [token, catalogAttempt])
+  }, [token, isAdmin, catalogAttempt])
+
+  useEffect(() => {
+    if (isDemo) return
+    const controller = new AbortController()
+    fleetApi.categories(controller.signal).then((items) => {
+      if (!controller.signal.aborted) setFleetCategories(items)
+    }).catch(() => {}) // The catalog includes names for every car even when categories cannot load.
+    return () => controller.abort()
+  }, [])
+
+  useEffect(() => {
+    if (isDemo || modalCarId == null) return
+    const controller = new AbortController()
+    fleetApi.car(modalCarId, token, controller.signal).then((car) => {
+      if (controller.signal.aborted) return
+      setModal((current) => current?.type === 'car' && current.car.id === modalCarId ? { ...current, car } : current)
+    }).catch(() => {}) // Keep the catalog details if the refresh fails.
+    return () => controller.abort()
+  }, [modalCarId, token])
 
   const loadProfile = useCallback(async (signal) => {
     if (!token) return
     setProfileState({ loading: true })
     try {
-      const profile = await request('/users/me', { token, signal })
+      const profile = await accountApi.me(token, signal)
       if (signal?.aborted) return
       setUser(profile)
       setProfileState({})
@@ -152,12 +185,14 @@ function App() {
     if (isDemo || !token) return
     setTrips({ loading: true })
     try {
-      const items = await request('/users/me/rentals', { token, signal })
+      const items = await rentalApi.mine(token, signal)
+      if (signal?.aborted) return
       setTrips({ items: [...items].sort((a, b) => b.id - a.id) })
     } catch (failure) {
+      if (signal?.aborted || failure.name === 'AbortError') return
       if (failure.status === 404) setTrips({ items: [] })
       else if (isSessionError(failure)) clearSession()
-      else if (failure.name !== 'AbortError') setTrips({ error: failure.message })
+      else setTrips({ error: failure.message })
     }
   }, [token, clearSession])
 
@@ -210,11 +245,14 @@ function App() {
     setBusy(true)
     setError('')
     try {
-      const result = await request('/auth/' + authMode, { method: 'POST', body: data })
+      const result = await authApi[authMode](data)
       saveToken(result.accessToken)
       setToken(result.accessToken)
       setUser(result.user)
-      showModal(modal.resume || null)
+      const nextRole = sessionRole(result.accessToken)
+      const resume = nextRole === 'ADMIN' ? null : modal.resume
+      if (!resume && (nextRole === 'MANAGER' || nextRole === 'ADMIN')) goTo('staff')
+      showModal(resume || null)
     } catch (failure) {
       setError(failure.status === 409 ? 'Имя пользователя, почта или телефон уже используются.' : failure.message)
     } finally {
@@ -239,7 +277,8 @@ function App() {
         const days = Math.max(1, Math.ceil((Date.parse(dates.end) - Date.parse(dates.start)) / 86400000))
         setDemoTrips((items) => [{ ...body, id: Date.now(), car, status: 'PENDING', totalPrice: car.pricePerDay * days }, ...items])
       } else {
-        await request('/rentals', { token, body: { ...body, userId: user.id }, method: 'POST' })
+        await rentalApi.create({ ...body, userId: user.id }, token)
+        refreshCatalog()
       }
       showModal(null)
       goTo('trips')
@@ -263,8 +302,9 @@ function App() {
       if (isDemo) {
         setDemoTrips((items) => items.map((item) => item.id === rental.id ? { ...item, status: 'CANCELLED' } : item))
       } else {
-        const updated = await request('/rentals/' + rental.id + '/cancel', { token, method: 'POST' })
-        setTrips((current) => ({ items: current.items.map((item) => item.id === rental.id ? updated : item) }))
+        const updated = await rentalApi.cancelMine(rental.id, token)
+        setTrips((current) => ({ items: (current.items || []).map((item) => item.id === rental.id ? updated : item) }))
+        refreshCatalog()
       }
       showModal(null)
       setNotice('Бронь отменена.')
@@ -280,18 +320,22 @@ function App() {
   }
 
   return <div className="app">
-    <header className="topbar">
+    <header className={'topbar' + (isStaff ? ' staff-topbar' : '')}>
       <button className="brand" type="button" aria-label="Верста, автопарк" onClick={() => goTo('catalog')}>
         <img className="brand-icon" src={import.meta.env.BASE_URL + 'versta-mark.svg'} alt="" width="40" height="40" />
         <span className="wordmark">ВЕРСТА</span>
       </button>
       <nav className="nav" aria-label="Разделы">
         <button type="button" aria-current={page === 'catalog' ? 'page' : undefined} onClick={() => goTo('catalog')}><MapIcon size={18} /> <span>Автопарк</span></button>
-        <button type="button" aria-current={page === 'trips' ? 'page' : undefined} onClick={() => goTo('trips')}><History size={18} /> <span>Мои поездки</span></button>
+        {!isAdmin && <button type="button" aria-current={page === 'trips' || page === 'payments' ? 'page' : undefined}
+          onClick={() => goTo('trips')}><History size={18} /> <span>Мои поездки</span></button>}
+        {isStaff && <button type="button" aria-current={page === 'staff' ? 'page' : undefined} onClick={() => goTo('staff')}><ShieldCheck size={18} /> <span>Панель</span></button>}
       </nav>
       {isDemo
         ? <a className="account" href={liveLink}><span className="demo-dot" /><span>Демо-режим</span></a>
-        : <button className="account" type="button" aria-current={page === 'profile' ? 'page' : undefined}
+        : isAdmin ? <button className="account" type="button" onClick={clearSession}>
+          <span className="account-icon"><LogOut size={16} /></span><span>Выйти</span>
+        </button> : <button className="account" type="button" aria-current={page === 'profile' ? 'page' : undefined}
           onClick={() => token ? goTo('profile') : showModal({ type: 'auth' })}>
           <span className="account-icon"><UserRound size={16} /></span><span>{token ? 'Мой профиль' : 'Войти'}</span>
         </button>}
@@ -300,15 +344,15 @@ function App() {
     {page === 'catalog' ? <main className={'workspace' + (mapVisible ? ' mobile-map' : '')}>
       <div className="fleet-header">
         <div>
-          <div className="subtitle"><MapPin size={15} /> Посуточная аренда</div>
-          <h1>Выберите автомобиль</h1>
+          {!isAdmin && <div className="subtitle"><MapPin size={15} /> Посуточная аренда</div>}
+          <h1>{isAdmin ? 'Весь автопарк' : 'Выберите автомобиль'}</h1>
         </div>
         <div className="fleet-actions">
-          <button className="date-trigger" type="button" onClick={() => showModal({ type: 'dates' })}>
+          {!isAdmin && <button className="date-trigger" type="button" onClick={() => showModal({ type: 'dates' })}>
             <span className="date-icon"><CalendarDays size={19} /></span>
             <span><small>Даты поездки</small><strong>{formatShort(dates.start)} — {formatShort(dates.end)}</strong></span>
             <ChevronDown className="date-chevron" size={15} />
-          </button>
+          </button>}
           <button className="location-trigger secondary" type="button" onClick={() => showModal({ type: 'location' })}>
             <LocateFixed size={18} /> {position ? 'Моё место' : 'Рядом со мной'}
           </button>
@@ -341,7 +385,7 @@ function App() {
           </div>
           {catalog.loading && <StateCard title="Загружаем автопарк" />}
           {catalog.error && <StateCard icon={Compass} title="Автопарк недоступен" detail={catalog.error}>
-            <button className="secondary" type="button" onClick={() => setCatalogAttempt((current) => current + 1)}>Повторить</button>
+            <button className="secondary" type="button" onClick={refreshCatalog}>Повторить</button>
             <a href={demoLink}>Открыть демо <ArrowUpRight size={15} /></a>
           </StateCard>}
           {catalog.cars && !visible.length && <StateCard title={cars.length ? 'Машины не найдены' : 'Автопарк пока пуст'} detail={cars.length ? 'Измените поиск или класс авто.' : 'Машины появятся здесь после добавления в автопарк.'}>
@@ -349,14 +393,17 @@ function App() {
               ? <button className="secondary" type="button" onClick={() => { setSearch(''); setCategory('') }}>Сбросить фильтры</button>
               : <a href={demoLink}>Открыть демо <ArrowUpRight size={15} /></a>}
           </StateCard>}
-          {visible.map((car) => <CarCard key={car.id} car={car} distance={distances.get(car.id)} active={car.id === selected?.id}
+          {visible.map((car) => <CarCard key={car.id} car={car} distance={distances.get(car.id)} active={car.id === selected?.id} showStatus={isAdmin}
             onDetails={() => openDetails(car)} />)}
         </div>
       </aside>
       <CarMap cars={visible} selected={selected} focusId={mapFocusId} position={position} distance={distances.get(selected?.id)}
         onFocus={setMapFocusId} onDetails={openDetails} onLocate={() => showModal({ type: 'location' })} />
-    </main> : page === 'profile' && token ? <Profile user={user} loading={profileState.loading}
-      error={profileState.error} onRetry={() => setProfileAttempt((current) => current + 1)} onLogout={() => { clearSession(); goTo('catalog') }} />
+    </main> : page === 'staff' && isStaff ? <StaffPanel key={token} token={token} role={role}
+      currentUserId={user?.id} onRentalChanged={refreshCatalog} />
+      : page === 'profile' && token ? <Profile user={user} role={role} loading={profileState.loading}
+        error={profileState.error} onRetry={() => setProfileAttempt((current) => current + 1)}
+        onLogout={() => { clearSession(); goTo('catalog') }} onDelete={() => showModal({ type: 'delete-account' })} />
       : page === 'profile' ? <main className="profile-page">
         <h1>Мой профиль</h1>
         <StateCard icon={UserRound} title="Войдите в аккаунт">
@@ -366,6 +413,11 @@ function App() {
       <div className="trips-head"><div><div className="subtitle"><History size={15} /> Личный кабинет</div><h1>Мои поездки</h1></div>
         <button className="primary" type="button" onClick={() => goTo('catalog')}>Выбрать авто <ArrowRight size={18} /></button>
       </div>
+      {token && <div className="segmented trips-segmented">
+        <button type="button" aria-pressed={page !== 'payments'} onClick={() => goTo('trips')}>Аренды</button>
+        <button type="button" aria-pressed={page === 'payments'} onClick={() => goTo('payments')}>Платежи</button>
+      </div>}
+      {page === 'payments' && token ? <MyPaymentLookup key={token} token={token} /> : <>
       {notice && <p className="notice" role="status">{notice}</p>}
       {!token && !isDemo && <StateCard icon={UserRound} title="Войдите в аккаунт" detail="Здесь будут ваши брони и история аренд.">
         <button className="primary" type="button" onClick={() => showModal({ type: 'auth' })}>Войти</button>
@@ -375,7 +427,10 @@ function App() {
         <button className="secondary" type="button" onClick={() => loadTrips()}>Повторить</button>
       </StateCard>}
       {(isDemo || token) && !trips.loading && !trips.error && !tripList.length && <StateCard icon={History} title="Поездок пока нет" detail="Выберите автомобиль и оформите бронь." />}
-      {tripList.map((rental) => <TripCard key={rental.id} rental={rental} onCancel={(item) => showModal({ type: 'cancel', rental: item })} />)}
+      {tripList.map((rental) => <TripCard key={rental.id} rental={rental}
+        onDetails={isDemo ? undefined : (item) => showModal({ type: 'trip', rental: item })}
+        onCancel={(item) => showModal({ type: 'cancel', rental: item })} />)}
+      </>}
     </main>}
 
     {modal?.type === 'location' && <Modal title="Рядом со мной" onClose={() => showModal(null)}>
@@ -388,8 +443,8 @@ function App() {
       <AuthForm mode={authMode} onMode={(mode) => { setAuthMode(mode); setError('') }} onSubmit={authenticate} busy={busy} error={error} />
     </Modal>}
     {modal?.type === 'car' && <Modal className="car-modal" title={carName(modal.car)} onClose={() => showModal(null)}>
-      <CarDetails car={modal.car} distance={distances.get(modal.car.id)} onBook={() => openBooking(modal.car)}
-        onMap={() => showCarOnMap(modal.car)} />
+      <CarDetails car={modal.car} distance={distances.get(modal.car.id)} onBook={isAdmin ? undefined : () => openBooking(modal.car)}
+        onMap={() => showCarOnMap(modal.car)} onTrips={token && !isAdmin ? () => { showModal(null); goTo('trips') } : undefined} />
     </Modal>}
     {modal?.type === 'book' && <Modal title="Бронирование" busy={busy} onClose={() => showModal(null)}>
       <BookingForm car={modal.car} dates={dates} onDates={setDates} onSubmit={book} busy={busy} error={error} needsLogin={!user && !isDemo} demo={isDemo} />
@@ -402,6 +457,15 @@ function App() {
         <button className="danger" type="button" disabled={busy} onClick={cancel}>{busy ? 'Отменяем…' : 'Отменить бронь'}</button>
       </div>
     </Modal>}
+    {modal?.type === 'trip' && token && <CustomerRental key={modal.rental.id} rentalId={modal.rental.id} token={token}
+      onClose={() => showModal(null)} onCancel={(rental) => showModal({ type: 'cancel', rental })} />}
+    {modal?.type === 'delete-account' && token && <ConfirmAction title="Удалить аккаунт?"
+      description="Ваш аккаунт будет удалён без возможности восстановления." label="Удалить аккаунт"
+      onClose={() => showModal(null)} onConfirm={async () => {
+        await accountApi.deleteMe(token)
+        clearSession()
+        goTo('catalog')
+      }} />}
   </div>
 }
 

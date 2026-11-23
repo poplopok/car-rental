@@ -12,8 +12,11 @@ import com.example.carrental.dto.response.RentalResponseDto;
 import com.example.carrental.entity.Car;
 import com.example.carrental.entity.Rental;
 import com.example.carrental.entity.User;
+import com.example.carrental.enums.CarStatus;
 import com.example.carrental.enums.RentalStatus;
 import com.example.carrental.exception.ForbiddenException;
+import com.example.carrental.exception.RentalCancellationException;
+import com.example.carrental.exception.RentalCreationException;
 import com.example.carrental.mapper.RentalMapper;
 import com.example.carrental.repository.CarRepository;
 import com.example.carrental.repository.RentalRepository;
@@ -51,6 +54,9 @@ public class RentalService {
         Car car = carRepository.findById(request.getCarId())
                 .orElseThrow(() -> new RuntimeException("Car not found"));
 
+        if (car.getStatus() != CarStatus.AVAILABLE) {
+            throw new RentalCreationException("Car is not available for rent");
+        }
         BigDecimal pricePerDay = car.getPricePerDay();
 
         long hours = Duration.between(
@@ -66,7 +72,6 @@ public class RentalService {
         BigDecimal totalPrice = pricePerDay.multiply(BigDecimal.valueOf(days));
 
         Rental rental = new Rental();
-
         rental.setUser(user);
         rental.setCar(car);
         rental.setPricePerDay(pricePerDay);
@@ -75,27 +80,27 @@ public class RentalService {
         rental.setPlannedEndTime(request.getPlannedEndTime());
         rental.setStatus(RentalStatus.PENDING);
 
+        car.setStatus(CarStatus.RENTED);
+        carRepository.save(car);
+
         Rental savedRental = rentalRepository.save(rental);
 
         return rentalMapper.convertToRentalResponseDto(savedRental);
     }
 
-    public List<RentalResponseDto> getAllRentals(Long userId) {
-
-        List<Rental> rentals;
+    public List<RentalResponseDto> getAllRentalsByUserId(Long userId) {
 
         if (userId == null) {
-            rentals = rentalRepository.findAll();
-        } else {
-            rentals = rentalRepository.findAllByUserId(userId);
+            throw new IllegalArgumentException("User ID must not be null");
         }
+        List<Rental> rentals = rentalRepository.findAllByUserId(userId);
 
         return rentals.stream()
-                .map(this.rentalMapper::convertToRentalResponseDto)
+                .map(rentalMapper::convertToRentalResponseDto)
                 .toList();
     }
 
-    public RentalResponseDto getRentalById(Long id, Long userId) {
+    public RentalResponseDto getRentalByIdAndUserID(Long id, Long userId) {
 
         Rental rental = rentalRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("Rental not found"));
@@ -103,11 +108,20 @@ public class RentalService {
         return rentalMapper.convertToRentalResponseDto(rental);
     }
 
-    public RentalResponseDto cancelRental(Long id, Long userId) {
+    public RentalResponseDto getRentalById(Long id) {
+
+        Rental rental = rentalRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Rental not found"));
+
+        return rentalMapper.convertToRentalResponseDto(rental);
+    }
+
+    public RentalResponseDto cancelMyRental(Long id, Long userId) {
 
         Rental rental = rentalRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("Rental not found"));
 
+        validateRentalCancellation(rental);
         rental.setStatus(RentalStatus.CANCELLED);
 
         Rental savedRental = rentalRepository.save(rental);
@@ -115,4 +129,24 @@ public class RentalService {
         return rentalMapper.convertToRentalResponseDto(savedRental);
     }
 
+    public RentalResponseDto cancelRentalById(Long id) {
+
+        Rental rental = rentalRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Rental not found"));
+
+        validateRentalCancellation(rental);
+        rental.setStatus(RentalStatus.CANCELLED);
+
+        Rental savedRental = rentalRepository.save(rental);
+
+        return rentalMapper.convertToRentalResponseDto(savedRental);
+    }
+
+    private void validateRentalCancellation(Rental rental) {
+        if (rental.getStatus() == RentalStatus.COMPLETED ||
+                rental.getStatus() == RentalStatus.CANCELLED) {
+            throw new RentalCancellationException(
+                    "Rental cannot be cancelled in its current status");
+        }
+    }
 }

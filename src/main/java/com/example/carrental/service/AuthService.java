@@ -43,7 +43,7 @@ public class AuthService {
         if (!passwordEncoder.matches(password, user.getPassword())) {
             throw new InvalidCredentialsException("Invalid email or password");
         }
-        String accessToken = jwtService.generateAccessToken(user.getId());
+        String accessToken = jwtService.generateAccessToken(user.getId(), user.getRole().toString());
         AuthResponseDto response = new AuthResponseDto();
         UserResponseDto userResponseDto = userMapper.convertToUserResponseDto(user);
 
@@ -65,7 +65,7 @@ public class AuthService {
         UserResponseDto userResponseDto = userMapper.convertToUserResponseDto(savedUser);
 
         Long savedUserId = savedUser.getId();
-        String accessToken = jwtService.generateAccessToken(savedUserId);
+        String accessToken = jwtService.generateAccessToken(savedUserId, savedUser.getRole().toString());
 
         AuthResponseDto response = new AuthResponseDto();
         response.setAccessToken(accessToken);

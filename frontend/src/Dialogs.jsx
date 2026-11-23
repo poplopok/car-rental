@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowRight, CalendarDays, CarFront, MapPin, Tag, X } from 'lucide-react'
-import { carImage, carName, coordinates, formatDate, localInput, price } from './catalog'
+import { carImage, carName, carStatusNames, categoryName, coordinates, formatDate, isBookable, localInput, price } from './catalog'
 import { formatDistance } from './location'
 
 function catalogPhotoUrl(value) {
@@ -46,21 +46,21 @@ export function Modal({ title, onClose, busy, className = '', children }) {
   </dialog>
 }
 
-const categoryLabels = { Economy: 'Эконом', Comfort: 'Комфорт', Business: 'Бизнес', SUV: 'Кроссовер', Premium: 'Премиум' }
-
-export function CarDetails({ car, distance, onBook, onMap }) {
+export function CarDetails({ car, distance, onBook, onMap, onTrips }) {
   const hasLocation = coordinates(car) !== null
   return <>
     <div className="car-detail-photo"><CarPhoto car={car} /></div>
     <dl className="car-specs">
-      <div><dt><Tag size={16} /> Класс</dt><dd>{categoryLabels[car.categoryName] || car.categoryName || 'Не указан'}</dd></div>
+      <div><dt><Tag size={16} /> Класс</dt><dd>{categoryName(car.categoryName) || 'Не указан'}</dd></div>
       <div><dt><CalendarDays size={16} /> Год выпуска</dt><dd>{car.year ?? 'Не указан'}</dd></div>
+      {car.status && <div><dt><CarFront size={16} /> Статус</dt><dd>{carStatusNames[car.status] || car.status}</dd></div>}
       {distance != null && <div><dt><MapPin size={16} /> Расстояние</dt><dd>{formatDistance(distance)}</dd></div>}
     </dl>
     <div className="car-detail-actions">
       <div className="car-detail-price"><strong>{price(car.pricePerDay)}</strong><span>в сутки</span></div>
       {hasLocation && <button className="secondary" type="button" onClick={onMap}><MapPin size={17} /> На карте</button>}
-      <button className="primary" type="button" onClick={onBook}>Забронировать <ArrowRight size={17} /></button>
+      {onBook && isBookable(car) && <button className="primary" type="button" onClick={onBook}>Забронировать <ArrowRight size={17} /></button>}
+      {car.status === 'RENTED' && onTrips && <button className="secondary" type="button" onClick={onTrips}>Мои поездки <ArrowRight size={17} /></button>}
     </div>
   </>
 }
@@ -141,22 +141,33 @@ export function BookingForm({ car, dates, onDates, onSubmit, busy, error, needsL
   </form>
 }
 
-export const rentalStatus = {
+const rentalStatus = {
   PENDING: ['Ожидает', 'pending'],
   ACTIVE: ['Активна', 'active'],
   COMPLETED: ['Завершена', 'completed'],
   CANCELLED: ['Отменена', 'cancelled'],
+  AVAILABLE: ['Доступна', 'active'],
 }
 
-export function TripCard({ rental, onCancel }) {
-  const [label, tone] = rentalStatus[rental.status] || [rental.status || '—', 'completed']
+export const canCancelRental = (status) => status === 'PENDING' || status === 'ACTIVE' || status === 'AVAILABLE'
+
+export function RentalBadge({ status }) {
+  const [label, tone] = rentalStatus[status] || [status || '—', 'completed']
+  return <span className={'status ' + tone}>{label}</span>
+}
+
+export function TripCard({ rental, onDetails, onCancel }) {
   return <article className="trip-card">
     <CarPhoto car={rental.car} />
     <div className="trip-info">
-      <div className="trip-title"><h3>{carName(rental.car)}</h3><span className={'status ' + tone}>{label}</span></div>
+      <div className="trip-title"><h3>{carName(rental.car)}</h3><RentalBadge status={rental.status} /></div>
+      <p>Аренда № {rental.id}</p>
       <p>{formatDate(rental.startTime)} — {formatDate(rental.plannedEndTime)}</p>
       <strong>{price(rental.totalPrice)}</strong>
     </div>
-    {rental.status === 'PENDING' && <button className="secondary" type="button" onClick={() => onCancel(rental)}>Отменить</button>}
+    <div className="record-actions">
+      {onDetails && <button className="secondary" type="button" onClick={() => onDetails(rental)}>Подробнее</button>}
+      {onCancel && canCancelRental(rental.status) && <button className="secondary" type="button" onClick={() => onCancel(rental)}>Отменить</button>}
+    </div>
   </article>
 }

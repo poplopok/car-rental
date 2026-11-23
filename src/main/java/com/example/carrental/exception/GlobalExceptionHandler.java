@@ -9,9 +9,12 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(UserAlreadyExistsException.class)
-    public ResponseEntity<String> handleUserAlreadyExists(UserAlreadyExistsException exception) {
-
+    @ExceptionHandler({
+            UserAlreadyExistsException.class,
+            RentalCancellationException.class,
+            RentalCreationException.class
+    })
+    public ResponseEntity<String> handleUserAlreadyExists(RuntimeException exception) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(exception.getMessage());
     }
 

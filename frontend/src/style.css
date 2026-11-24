@@ -171,6 +171,7 @@ h1 { font-size: clamp(34px, 4vw, 58px); line-height: 1.04; letter-spacing: -.067
 .status.cancelled { background: #faeae7; color: #83362d; }
 .notice, .error { border-radius: 9px; padding: 10px 12px; font-size: 13px; }
 .notice { margin-bottom: 12px; background: #e4f0df; color: #365835; }
+.session-notice { padding: 10px 16px; background: #fff0e8; color: #8c4832; font-size: 13px; text-align: center; }
 .error { background: #fff0ee; color: #922e25; }
 
 .profile-page > h1 { margin-bottom: 22px; }

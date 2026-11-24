@@ -4,15 +4,15 @@ import { paymentApi, rentalApi } from './api'
 import { canCancelRental, Modal } from './Dialogs'
 import { PaymentDetails, paymentMethods, RecordLookup, RentalDetails } from './Records'
 
-export function MyPaymentLookup({ token }) {
+export function MyPaymentLookup({ session }) {
   return <section className="staff-panel" aria-label="Найти свой платёж">
     <h2>Найти свой платёж</h2>
-    <RecordLookup label="ID платежа" load={paymentApi.mine} token={token}
+    <RecordLookup label="ID платежа" load={paymentApi.mine} session={session}
       renderResult={(payment) => <div className="staff-record"><PaymentDetails payment={payment} /></div>} />
   </section>
 }
 
-export default function CustomerRental({ rentalId, token, onClose, onCancel }) {
+export default function CustomerRental({ rentalId, session, onClose, onCancel }) {
   const [rental, setRental] = useState(null)
   const [payment, setPayment] = useState(null)
   const [method, setMethod] = useState('DEBIT_CARD')
@@ -23,7 +23,7 @@ export default function CustomerRental({ rentalId, token, onClose, onCancel }) {
   useEffect(() => {
     const controller = new AbortController()
     const { signal } = controller
-    rentalApi.myRental(rentalId, token, signal).then((result) => {
+    rentalApi.myRental(rentalId, session, signal).then((result) => {
       if (!signal.aborted) setRental(result)
     }).catch((failure) => {
       if (!signal.aborted) setError(failure.message)
@@ -31,14 +31,14 @@ export default function CustomerRental({ rentalId, token, onClose, onCancel }) {
       if (!signal.aborted) setLoading(false)
     })
     return () => controller.abort()
-  }, [rentalId, token])
+  }, [rentalId, session])
 
   async function createPayment(event) {
     event.preventDefault()
     setBusy(true)
     setError('')
     try {
-      setPayment(await paymentApi.create(rentalId, method, token))
+      setPayment(await paymentApi.create(rentalId, method, session))
     } catch (failure) {
       setError(failure.message)
     } finally {

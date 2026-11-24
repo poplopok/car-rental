@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { createRoot } from 'react-dom/client'
 import {
   ArrowRight, ArrowUpRight, ChevronRight, CalendarDays, CarFront, ChevronDown, Compass, History, List,
   LocateFixed, LogOut, Map as MapIcon, MapPin, Search, ShieldCheck, UserRound,
 } from 'lucide-react'
-import { accountApi, authApi, fleetApi, isDemo, readToken, rentalApi, saveToken, sessionRole } from './api'
+import { accountApi, authApi, fleetApi, getAuthState, isDemo, rentalApi, saveSession, subscribeAuth } from './api'
 import { carName, carStatusNames, categoryName, coordinates, defaultDates, demoCars, isBookable, localInput, price } from './catalog'
 import CarMap from './CarMap'
 import CustomerRental, { MyPaymentLookup } from './CustomerRental'
@@ -18,7 +18,6 @@ import './style.css'
 
 const shortDate = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short' })
 const formatShort = (value) => value ? shortDate.format(new Date(value)).replace('.', '') : '—'
-const isSessionError = (error) => error.status === 401 || error.status === 403
 const demoLink = '?demo=1'
 const liveLink = window.location.pathname
 const emptyList = []
@@ -61,11 +60,13 @@ function App() {
   const [position, setPosition] = useState(null)
   const [selectedId, selectCar] = useState(null)
   const [mapFocusId, setMapFocusId] = useState(null)
-  const [token, setToken] = useState(() => isDemo ? null : readToken())
-  const role = sessionRole(token)
+  const { session, expired } = useSyncExternalStore(subscribeAuth, getAuthState)
+  const role = session?.role
   const isAdmin = role === 'ADMIN'
   const isStaff = role === 'MANAGER' || isAdmin
-  const [page, setPage] = useState(() => isStaff ? 'staff' : 'catalog')
+  const [currentPage, setPage] = useState(() => isStaff ? 'staff' : 'catalog')
+  const page = isAdmin && currentPage !== 'catalog' ? 'staff'
+    : (!isStaff && currentPage === 'staff') || (role !== 'USER' && currentPage === 'payments') ? 'catalog' : currentPage
   const [mapVisible, setMapVisible] = useState(false)
   const [dates, setDates] = useState(defaultDates)
   const [user, setUser] = useState(() => isDemo ? demoUser : null)
@@ -81,7 +82,7 @@ function App() {
   const modalCarId = modal?.type === 'car' ? modal.car.id : null
   const refreshCatalog = useCallback(() => setCatalogAttempt((current) => current + 1), [])
 
-  const hasCurrentCatalog = catalogResult?.token === token && catalogResult?.attempt === catalogAttempt
+  const hasCurrentCatalog = catalogResult?.session === session && catalogResult?.attempt === catalogAttempt
   const catalog = isDemo ? demoCatalog : (hasCurrentCatalog ? catalogResult : loadingCatalog)
   const cars = catalog.cars || emptyList
   const categories = useMemo(() => {
@@ -112,25 +113,32 @@ function App() {
   const tripList = isDemo ? demoTrips : (trips.items || emptyList)
 
   const clearSession = useCallback(() => {
-    saveToken(null)
-    setToken(null)
+    saveSession(null)
+  }, [])
+
+  useEffect(() => {
+    if (isDemo || session) return
     setUser(null)
     setProfileState({})
     setTrips({})
     setModal(null)
     setPage('catalog')
-  }, [])
+  }, [session])
+
+  useEffect(() => {
+    if (isAdmin) setModal((current) => current?.type === 'car' || current?.type === 'location' ? current : null)
+  }, [isAdmin])
 
   useEffect(() => {
     if (isDemo) return
     const controller = new AbortController()
     const { signal } = controller
-    const scope = { token, attempt: catalogAttempt }
+    const scope = { session, attempt: catalogAttempt }
 
     async function loadCatalog() {
       try {
         const list = isAdmin ? fleetApi.all : fleetApi.list
-        const cars = await list(token, signal)
+        const cars = await list(session, signal)
         if (!signal.aborted) setCatalogResult({ ...scope, cars })
       } catch (failure) {
         if (!signal.aborted) setCatalogResult({ ...scope, error: failure.message })
@@ -139,7 +147,7 @@ function App() {
 
     loadCatalog()
     return () => controller.abort()
-  }, [token, isAdmin, catalogAttempt])
+  }, [session, isAdmin, catalogAttempt])
 
   useEffect(() => {
     if (isDemo) return
@@ -153,27 +161,27 @@ function App() {
   useEffect(() => {
     if (isDemo || modalCarId == null) return
     const controller = new AbortController()
-    fleetApi.car(modalCarId, token, controller.signal).then((car) => {
+    fleetApi.car(modalCarId, session, controller.signal).then((car) => {
       if (controller.signal.aborted) return
       setModal((current) => current?.type === 'car' && current.car.id === modalCarId ? { ...current, car } : current)
     }).catch(() => {}) // Keep the catalog details if the refresh fails.
     return () => controller.abort()
-  }, [modalCarId, token])
+  }, [modalCarId, session])
 
   const loadProfile = useCallback(async (signal) => {
-    if (!token) return
+    if (!session) return
     setProfileState({ loading: true })
     try {
-      const profile = await accountApi.me(token, signal)
+      const profile = await accountApi.me(session, signal)
       if (signal?.aborted) return
       setUser(profile)
       setProfileState({})
     } catch (failure) {
       if (failure.name === 'AbortError' || signal?.aborted) return
-      if (isSessionError(failure) || failure.status === 404) clearSession()
+      if (failure.status === 404) clearSession()
       else setProfileState({ error: failure.message })
     }
-  }, [token, clearSession])
+  }, [session, clearSession])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -182,19 +190,18 @@ function App() {
   }, [loadProfile, profileAttempt])
 
   const loadTrips = useCallback(async (signal) => {
-    if (isDemo || !token) return
+    if (isDemo || !session) return
     setTrips({ loading: true })
     try {
-      const items = await rentalApi.mine(token, signal)
+      const items = await rentalApi.mine(session, signal)
       if (signal?.aborted) return
       setTrips({ items: [...items].sort((a, b) => b.id - a.id) })
     } catch (failure) {
       if (signal?.aborted || failure.name === 'AbortError') return
       if (failure.status === 404) setTrips({ items: [] })
-      else if (isSessionError(failure)) clearSession()
       else setTrips({ error: failure.message })
     }
-  }, [token, clearSession])
+  }, [session])
 
   useEffect(() => {
     if (page !== 'trips') return
@@ -246,10 +253,9 @@ function App() {
     setError('')
     try {
       const result = await authApi[authMode](data)
-      saveToken(result.accessToken)
-      setToken(result.accessToken)
+      const signedIn = saveSession(result)
       setUser(result.user)
-      const nextRole = sessionRole(result.accessToken)
+      const nextRole = signedIn.role
       const resume = nextRole === 'ADMIN' ? null : modal.resume
       if (!resume && (nextRole === 'MANAGER' || nextRole === 'ADMIN')) goTo('staff')
       showModal(resume || null)
@@ -263,7 +269,7 @@ function App() {
   async function book() {
     if (!(dates.end > dates.start)) return setError('Конец аренды должен быть позже начала.')
     if (dates.start < localInput(new Date())) return setError('Выберите время начала в будущем.')
-    if (!isDemo && (!token || !user)) {
+    if (!isDemo && (!session || !user)) {
       showModal({ type: 'auth', resume: modal })
       return
     }
@@ -277,18 +283,14 @@ function App() {
         const days = Math.max(1, Math.ceil((Date.parse(dates.end) - Date.parse(dates.start)) / 86400000))
         setDemoTrips((items) => [{ ...body, id: Date.now(), car, status: 'PENDING', totalPrice: car.pricePerDay * days }, ...items])
       } else {
-        await rentalApi.create({ ...body, userId: user.id }, token)
+        await rentalApi.create({ ...body, userId: user.id }, session)
         refreshCatalog()
       }
       showModal(null)
       goTo('trips')
       setNotice(isDemo ? 'Демо-бронь создана.' : 'Бронь создана.')
     } catch (failure) {
-      if (isSessionError(failure)) {
-        clearSession()
-        showModal({ type: 'auth', resume: modal })
-      }
-      setError(failure.message)
+      if (failure.name !== 'AbortError') setError(failure.message)
     } finally {
       setBusy(false)
     }
@@ -302,18 +304,14 @@ function App() {
       if (isDemo) {
         setDemoTrips((items) => items.map((item) => item.id === rental.id ? { ...item, status: 'CANCELLED' } : item))
       } else {
-        const updated = await rentalApi.cancelMine(rental.id, token)
+        const updated = await rentalApi.cancelMine(rental.id, session)
         setTrips((current) => ({ items: (current.items || []).map((item) => item.id === rental.id ? updated : item) }))
         refreshCatalog()
       }
       showModal(null)
       setNotice('Бронь отменена.')
     } catch (failure) {
-      if (isSessionError(failure)) {
-        clearSession()
-        showModal({ type: 'auth' })
-      }
-      setError(failure.message)
+      if (failure.name !== 'AbortError') setError(failure.message)
     } finally {
       setBusy(false)
     }
@@ -336,10 +334,11 @@ function App() {
         : isAdmin ? <button className="account" type="button" onClick={clearSession}>
           <span className="account-icon"><LogOut size={16} /></span><span>Выйти</span>
         </button> : <button className="account" type="button" aria-current={page === 'profile' ? 'page' : undefined}
-          onClick={() => token ? goTo('profile') : showModal({ type: 'auth' })}>
-          <span className="account-icon"><UserRound size={16} /></span><span>{token ? 'Мой профиль' : 'Войти'}</span>
+          onClick={() => session ? goTo('profile') : showModal({ type: 'auth' })}>
+          <span className="account-icon"><UserRound size={16} /></span><span>{session ? 'Мой профиль' : 'Войти'}</span>
         </button>}
     </header>
+    {expired && <p className="session-notice" role="status">Сессия истекла. Войдите в аккаунт снова.</p>}
 
     {page === 'catalog' ? <main className={'workspace' + (mapVisible ? ' mobile-map' : '')}>
       <div className="fleet-header">
@@ -399,9 +398,9 @@ function App() {
       </aside>
       <CarMap cars={visible} selected={selected} focusId={mapFocusId} position={position} distance={distances.get(selected?.id)}
         onFocus={setMapFocusId} onDetails={openDetails} onLocate={() => showModal({ type: 'location' })} />
-    </main> : page === 'staff' && isStaff ? <StaffPanel key={token} token={token} role={role}
+    </main> : page === 'staff' && isStaff ? <StaffPanel key={role} session={session} role={role}
       currentUserId={user?.id} onRentalChanged={refreshCatalog} />
-      : page === 'profile' && token ? <Profile user={user} role={role} loading={profileState.loading}
+      : page === 'profile' && session ? <Profile user={user} role={role} loading={profileState.loading}
         error={profileState.error} onRetry={() => setProfileAttempt((current) => current + 1)}
         onLogout={() => { clearSession(); goTo('catalog') }} onDelete={() => showModal({ type: 'delete-account' })} />
       : page === 'profile' ? <main className="profile-page">
@@ -413,20 +412,20 @@ function App() {
       <div className="trips-head"><div><div className="subtitle"><History size={15} /> Личный кабинет</div><h1>Мои поездки</h1></div>
         <button className="primary" type="button" onClick={() => goTo('catalog')}>Выбрать авто <ArrowRight size={18} /></button>
       </div>
-      {token && <div className="segmented trips-segmented">
+      {role === 'USER' && <div className="segmented trips-segmented">
         <button type="button" aria-pressed={page !== 'payments'} onClick={() => goTo('trips')}>Аренды</button>
         <button type="button" aria-pressed={page === 'payments'} onClick={() => goTo('payments')}>Платежи</button>
       </div>}
-      {page === 'payments' && token ? <MyPaymentLookup key={token} token={token} /> : <>
+      {page === 'payments' && role === 'USER' ? <MyPaymentLookup session={session} /> : <>
       {notice && <p className="notice" role="status">{notice}</p>}
-      {!token && !isDemo && <StateCard icon={UserRound} title="Войдите в аккаунт" detail="Здесь будут ваши брони и история аренд.">
+      {!session && !isDemo && <StateCard icon={UserRound} title="Войдите в аккаунт" detail="Здесь будут ваши брони и история аренд.">
         <button className="primary" type="button" onClick={() => showModal({ type: 'auth' })}>Войти</button>
       </StateCard>}
       {trips.loading && <StateCard icon={History} title="Загружаем поездки" />}
       {trips.error && <StateCard icon={History} title="Не удалось загрузить поездки" detail={trips.error}>
         <button className="secondary" type="button" onClick={() => loadTrips()}>Повторить</button>
       </StateCard>}
-      {(isDemo || token) && !trips.loading && !trips.error && !tripList.length && <StateCard icon={History} title="Поездок пока нет" detail="Выберите автомобиль и оформите бронь." />}
+      {(isDemo || session) && !trips.loading && !trips.error && !tripList.length && <StateCard icon={History} title="Поездок пока нет" detail="Выберите автомобиль и оформите бронь." />}
       {tripList.map((rental) => <TripCard key={rental.id} rental={rental}
         onDetails={isDemo ? undefined : (item) => showModal({ type: 'trip', rental: item })}
         onCancel={(item) => showModal({ type: 'cancel', rental: item })} />)}
@@ -444,7 +443,7 @@ function App() {
     </Modal>}
     {modal?.type === 'car' && <Modal className="car-modal" title={carName(modal.car)} onClose={() => showModal(null)}>
       <CarDetails car={modal.car} distance={distances.get(modal.car.id)} onBook={isAdmin ? undefined : () => openBooking(modal.car)}
-        onMap={() => showCarOnMap(modal.car)} onTrips={token && !isAdmin ? () => { showModal(null); goTo('trips') } : undefined} />
+        onMap={() => showCarOnMap(modal.car)} onTrips={session && !isAdmin ? () => { showModal(null); goTo('trips') } : undefined} />
     </Modal>}
     {modal?.type === 'book' && <Modal title="Бронирование" busy={busy} onClose={() => showModal(null)}>
       <BookingForm car={modal.car} dates={dates} onDates={setDates} onSubmit={book} busy={busy} error={error} needsLogin={!user && !isDemo} demo={isDemo} />
@@ -457,12 +456,12 @@ function App() {
         <button className="danger" type="button" disabled={busy} onClick={cancel}>{busy ? 'Отменяем…' : 'Отменить бронь'}</button>
       </div>
     </Modal>}
-    {modal?.type === 'trip' && token && <CustomerRental key={modal.rental.id} rentalId={modal.rental.id} token={token}
+    {modal?.type === 'trip' && session && <CustomerRental key={modal.rental.id} rentalId={modal.rental.id} session={session}
       onClose={() => showModal(null)} onCancel={(rental) => showModal({ type: 'cancel', rental })} />}
-    {modal?.type === 'delete-account' && token && <ConfirmAction title="Удалить аккаунт?"
+    {modal?.type === 'delete-account' && session && <ConfirmAction title="Удалить аккаунт?"
       description="Ваш аккаунт будет удалён без возможности восстановления." label="Удалить аккаунт"
       onClose={() => showModal(null)} onConfirm={async () => {
-        await accountApi.deleteMe(token)
+        await accountApi.deleteMe(session)
         clearSession()
         goTo('catalog')
       }} />}

@@ -48,7 +48,7 @@ export function PaymentDetails({ payment }) {
   ]} />
 }
 
-export function RecordLookup({ label, load, token, initialId, renderResult }) {
+export function RecordLookup({ label, load, session, initialId, renderResult }) {
   const [input, setInput] = useState(initialId || '')
   const [query, setQuery] = useState(() => initialId ? { id: String(initialId) } : null)
   const [result, setResult] = useState({})
@@ -56,13 +56,13 @@ export function RecordLookup({ label, load, token, initialId, renderResult }) {
     if (!query) return
     const controller = new AbortController()
     const { signal } = controller
-    load(query.id, token, signal).then((data) => {
+    load(query.id, session, signal).then((data) => {
       if (!signal.aborted) setResult({ query, data })
     }).catch((failure) => {
       if (!signal.aborted) setResult({ query, error: failure.message })
     })
     return () => controller.abort()
-  }, [query, load, token])
+  }, [query, load, session])
 
   const loading = query && result.query !== query
   const submit = (event) => {

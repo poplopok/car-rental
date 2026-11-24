@@ -10,6 +10,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import com.example.carrental.enums.TokenStatus;
 import com.example.carrental.service.JwtService;
 
 import jakarta.servlet.FilterChain;
@@ -41,10 +42,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String token = authHeader.substring(7);
 
-        if (!jwtService.isTokenValid(token, "access")) {
+        TokenStatus tokenStatus = jwtService.validateToken(token, "access");
+
+        if (tokenStatus != TokenStatus.VALID) {
             filterChain.doFilter(request, response);
             return;
         }
+
         Long userId = jwtService.extractUserId(token);
         String role = jwtService.extractRole(token);
 

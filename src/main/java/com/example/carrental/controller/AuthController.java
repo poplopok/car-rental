@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.carrental.dto.request.LoginRequestDto;
+import com.example.carrental.dto.request.RefreshTokenRequestDto;
 import com.example.carrental.dto.request.RegisterRequestDto;
 import com.example.carrental.dto.response.AuthResponseDto;
 import com.example.carrental.service.AuthService;
@@ -36,4 +37,12 @@ public class AuthController {
         return ResponseEntity.ok(responseDto);
     }
 
+    @PostMapping("/refresh")
+    public ResponseEntity<AuthResponseDto> refreshToken(
+            @Valid @RequestBody RefreshTokenRequestDto request) {
+
+        AuthResponseDto response = authService.refreshToken(request.getRefreshToken());
+
+        return ResponseEntity.ok(response);
+    }
 }

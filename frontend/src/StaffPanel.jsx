@@ -10,7 +10,7 @@ const sections = [
   ['rentals', 'Аренды', ClipboardList],
 ]
 
-export default function StaffPanel({ token, role, currentUserId, onRentalChanged }) {
+export default function StaffPanel({ session, role, currentUserId, onRentalChanged }) {
   const [section, setSection] = useState('users')
   const [rentalMode, setRentalMode] = useState('rental')
   const [initialUserId, setInitialUserId] = useState(null)
@@ -41,7 +41,7 @@ export default function StaffPanel({ token, role, currentUserId, onRentalChanged
           description: 'Аренда № ' + rental.id + ' будет отменена.',
           label: 'Отменить аренду',
           action: async () => {
-            const updated = await rentalApi.cancel(rental.id, token)
+            const updated = await rentalApi.cancel(rental.id, session)
             replaceRental(updated)
             onRentalChanged()
             setNotice('Аренда отменена.')
@@ -67,7 +67,7 @@ export default function StaffPanel({ token, role, currentUserId, onRentalChanged
       <section className="staff-panel" aria-label={sections.find(([id]) => id === section)[1]}>
         <h2>{sections.find(([id]) => id === section)[1]}</h2>
         {notice && <p className="notice" role="status">{notice}</p>}
-        {section === 'users' && <RecordLookup key="users" label="ID пользователя" load={accountApi.user} token={token}
+        {section === 'users' && <RecordLookup key="users" label="ID пользователя" load={accountApi.user} session={session}
           renderResult={(user, setResult) => <div className="staff-record">
             <UserDetails user={user} />
             <div className="record-actions">
@@ -77,7 +77,7 @@ export default function StaffPanel({ token, role, currentUserId, onRentalChanged
                 description: 'Аккаунт № ' + user.id + ' будет удалён без возможности восстановления.',
                 label: 'Удалить пользователя',
                 action: async () => {
-                  await accountApi.deleteUser(user.id, token)
+                  await accountApi.deleteUser(user.id, session)
                   setResult(null)
                   setNotice('Пользователь удалён.')
                 },
@@ -91,9 +91,9 @@ export default function StaffPanel({ token, role, currentUserId, onRentalChanged
           </div>
           {rentalMode === 'user'
             ? <RecordLookup key={'user-rentals-' + initialUserId} label="ID пользователя" initialId={initialUserId}
-              load={rentalApi.byUser} token={token}
+              load={rentalApi.byUser} session={session}
               renderResult={(items, setItems) => renderRentals(items, (updated) => setItems(items.map((item) => item.id === updated.id ? updated : item)))} />
-            : <RecordLookup key="rental" label="ID аренды" load={rentalApi.byId} token={token}
+            : <RecordLookup key="rental" label="ID аренды" load={rentalApi.byId} session={session}
               renderResult={(rental, setRental) => renderRentals([rental], setRental)} />}
         </>}
       </section>

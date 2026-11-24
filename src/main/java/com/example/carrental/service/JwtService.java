@@ -9,7 +9,10 @@ import javax.crypto.SecretKey;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.example.carrental.enums.TokenStatus;
+
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
@@ -37,18 +40,35 @@ public class JwtService {
                 .compact();
     }
 
-    public boolean isTokenValid(String token, String expectedType) {
+    public String generateRefreshToken(Long userId) {
+        return Jwts.builder()
+                .subject(userId.toString())
+                .claim("type", "refresh")
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + expirationRefreshToken))
+                .signWith(getSigningKey())
+                .compact();
+    }
+
+    public TokenStatus validateToken(String token, String expectedType) {
         try {
             Jws<Claims> claims = Jwts.parser()
                     .verifyWith(getSigningKey())
                     .build()
                     .parseSignedClaims(token);
 
-            return expectedType.equals(
-                    claims.getPayload().get("type", String.class));
+            if (!expectedType.equals(
+                    claims.getPayload().get("type", String.class))) {
+                return TokenStatus.WRONG_TYPE;
+            }
+
+            return TokenStatus.VALID;
+
+        } catch (ExpiredJwtException e) {
+            return TokenStatus.EXPIRED;
 
         } catch (JwtException | IllegalArgumentException e) {
-            return false;
+            return TokenStatus.INVALID;
         }
     }
 
@@ -64,16 +84,6 @@ public class JwtService {
 
     public String extractRole(String token) {
         return extractClaim(token, (claim) -> claim.get("role", String.class));
-    }
-
-    public String generateRefreshToken(Long userId) {
-        return Jwts.builder()
-                .subject(userId.toString())
-                .claim("type", "refresh")
-                .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + expirationRefreshToken))
-                .signWith(getSigningKey())
-                .compact();
     }
 
     private SecretKey getSigningKey() {

@@ -10,6 +10,8 @@ import com.example.carrental.dto.request.RegisterRequestDto;
 import com.example.carrental.dto.response.AuthResponseDto;
 import com.example.carrental.dto.response.UserResponseDto;
 import com.example.carrental.entity.User;
+import com.example.carrental.enums.TokenStatus;
+import com.example.carrental.enums.UserRole;
 import com.example.carrental.exception.InvalidCredentialsException;
 import com.example.carrental.exception.UserAlreadyExistsException;
 import com.example.carrental.exception.UserNotFoundException;
@@ -43,11 +45,16 @@ public class AuthService {
         if (!passwordEncoder.matches(password, user.getPassword())) {
             throw new InvalidCredentialsException("Invalid email or password");
         }
-        String accessToken = jwtService.generateAccessToken(user.getId(), user.getRole().toString());
+        String accessToken = jwtService.generateAccessToken(
+                user.getId(), user.getRole().name());
+
+        String refreshToken = jwtService.generateRefreshToken(user.getId());
+
         AuthResponseDto response = new AuthResponseDto();
         UserResponseDto userResponseDto = userMapper.convertToUserResponseDto(user);
 
         response.setAccessToken(accessToken);
+        response.setRefreshToken(refreshToken);
         response.setUser(userResponseDto);
 
         return response;
@@ -65,11 +72,41 @@ public class AuthService {
         UserResponseDto userResponseDto = userMapper.convertToUserResponseDto(savedUser);
 
         Long savedUserId = savedUser.getId();
-        String accessToken = jwtService.generateAccessToken(savedUserId, savedUser.getRole().toString());
+        String accessToken = jwtService.generateAccessToken(
+                savedUserId, savedUser.getRole().name());
+
+        String refreshToken = jwtService.generateRefreshToken(savedUserId);
 
         AuthResponseDto response = new AuthResponseDto();
         response.setAccessToken(accessToken);
+        response.setRefreshToken(refreshToken);
         response.setUser(userResponseDto);
+
+        return response;
+    }
+
+    public AuthResponseDto refreshToken(String refreshToken) {
+
+        TokenStatus tokenStatus = jwtService.validateToken(refreshToken, "refresh");
+
+        if (tokenStatus != TokenStatus.VALID) {
+            throw new InvalidCredentialsException("Invalid refresh token");
+        }
+
+        Long userId = jwtService.extractUserId(refreshToken);
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new InvalidCredentialsException("User not found"));
+
+        UserRole role = user.getRole();
+
+        String accessToken = jwtService.generateAccessToken(userId, role.name());
+        String newRefreshToken = jwtService.generateRefreshToken(userId);
+
+        AuthResponseDto response = new AuthResponseDto();
+        response.setAccessToken(accessToken);
+        response.setRefreshToken(newRefreshToken);
+        response.setUser(userMapper.convertToUserResponseDto(user));
 
         return response;
     }

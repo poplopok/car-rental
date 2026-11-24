@@ -1,5 +1,7 @@
 const base = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '')
-const sessionKey = 'rul.access-token'
+const sessionKey = 'rul.session'
+const legacyTokenKey = 'rul.access-token'
+const refreshAheadMs = 5000
 export const isDemo = new URLSearchParams(window.location.search).get('demo') === '1'
 
 export class ApiError extends Error {
@@ -18,29 +20,116 @@ export class ApiError extends Error {
   }
 }
 
-export function readToken() {
-  return sessionStorage.getItem(sessionKey)
-}
-
-export function saveToken(token) {
-  if (token) sessionStorage.setItem(sessionKey, token)
-  else sessionStorage.removeItem(sessionKey)
+function jwtClaims(token) {
+  try {
+    const payload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+    return JSON.parse(atob(payload))
+  } catch {
+    return null
+  }
 }
 
 export const roleNames = { USER: 'Пользователь', MANAGER: 'Менеджер', ADMIN: 'Администратор' }
 
-export function sessionRole(token) {
-  if (!token) return null
+function sessionFrom({ accessToken, refreshToken }) {
+  if (typeof accessToken !== 'string' || !accessToken) return null
+  const role = jwtClaims(accessToken)?.role
+  return { accessToken, refreshToken: typeof refreshToken === 'string' ? refreshToken : null,
+    role: Object.hasOwn(roleNames, role) ? role : 'USER' }
+}
+
+function restoreSession() {
+  if (isDemo) return null
   try {
-    const payload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
-    const { role } = JSON.parse(atob(payload))
-    return Object.hasOwn(roleNames, role) ? role : 'USER'
+    const stored = sessionStorage.getItem(sessionKey)
+    return sessionFrom(stored ? JSON.parse(stored) ?? {} : { accessToken: sessionStorage.getItem(legacyTokenKey) })
   } catch {
-    return 'USER'
+    return null
   }
 }
 
-export async function request(path, { token, body, method = 'GET', signal, cache, responseType = 'json' } = {}) {
+let authState = { session: restoreSession(), expired: false }
+const authListeners = new Set()
+
+export function getAuthState() {
+  return authState
+}
+
+export function subscribeAuth(listener) {
+  authListeners.add(listener)
+  return () => authListeners.delete(listener)
+}
+
+function persistSession(session) {
+  if (session) {
+    const { accessToken, refreshToken } = session
+    sessionStorage.setItem(sessionKey, JSON.stringify({ accessToken, refreshToken }))
+  } else {
+    sessionStorage.removeItem(sessionKey)
+  }
+  sessionStorage.removeItem(legacyTokenKey)
+}
+
+function publishSession(session, expired = false) {
+  persistSession(session)
+  authState = { session, expired }
+  authListeners.forEach((listener) => listener())
+}
+
+export function saveSession(result) {
+  const session = result && sessionFrom(result)
+  if (result && !session) throw new ApiError(502)
+  publishSession(session)
+  return session
+}
+
+function needsRefresh(token) {
+  const exp = jwtClaims(token)?.exp
+  return typeof exp === 'number' && exp * 1000 <= Date.now() + refreshAheadMs
+}
+
+function checkSession(session, signal) {
+  signal?.throwIfAborted()
+  if (authState.session !== session) throw new DOMException('Session changed', 'AbortError')
+}
+
+async function renewSession(session) {
+  let result
+  try {
+    result = await sendRequest('/auth/refresh', {
+      method: 'POST', body: { refreshToken: session.refreshToken }, cache: 'no-store',
+    })
+  } catch (failure) {
+    checkSession(session)
+    if (![400, 401, 403].includes(failure.status)) throw failure
+    publishSession(null, true)
+    return
+  }
+
+  checkSession(session)
+  const next = result && sessionFrom(result)
+  if (!next?.refreshToken) throw new ApiError(502)
+  if (next.role !== session.role) {
+    publishSession(next)
+  } else {
+    persistSession(next)
+    session.accessToken = next.accessToken
+    session.refreshToken = next.refreshToken
+  }
+}
+
+async function refreshSession(session, rejectedAccess) {
+  checkSession(session)
+  if (session.accessToken !== rejectedAccess) return
+  if (!session.refreshToken) {
+    publishSession(null, true)
+    return
+  }
+  session.refresh ??= renewSession(session).finally(() => { delete session.refresh })
+  await session.refresh
+}
+
+async function sendRequest(path, { token, body, method = 'GET', signal, cache, responseType = 'json' } = {}) {
   let response
   try {
     response = await fetch(base + path, {
@@ -80,38 +169,67 @@ export async function request(path, { token, body, method = 'GET', signal, cache
   }
 }
 
+async function request(path, { session, ...options } = {}) {
+  if (!session) return sendRequest(path, options)
+
+  const { signal } = options
+  checkSession(session, signal)
+  let token = session.accessToken
+  const refreshedBeforeRequest = needsRefresh(token)
+  if (refreshedBeforeRequest) {
+    await refreshSession(session, token)
+    checkSession(session, signal)
+    token = session.accessToken
+  }
+
+  let result
+  try {
+    result = await sendRequest(path, { ...options, token })
+  } catch (failure) {
+    checkSession(session, signal)
+    const expired = failure.status === 401 ||
+      (failure.status === 403 && (path === '/users/me' || needsRefresh(token)))
+    if (refreshedBeforeRequest || !expired) throw failure
+    await refreshSession(session, token)
+    checkSession(session, signal)
+    result = await sendRequest(path, { ...options, token: session.accessToken })
+  }
+  checkSession(session, signal)
+  return result
+}
+
 export const authApi = {
   login: (body) => request('/auth/login', { method: 'POST', body }),
   register: (body) => request('/auth/register', { method: 'POST', body }),
 }
 
 export const fleetApi = {
-  list: (token, signal) => request('/cars', { token, signal, cache: 'no-store' }),
-  all: (token, signal) => request('/cars/all', { token, signal, cache: 'no-store' }),
-  car: (id, token, signal) => request('/cars/' + id, { token, signal, cache: 'no-store' }),
+  list: (session, signal) => request('/cars', { session, signal, cache: 'no-store' }),
+  all: (session, signal) => request('/cars/all', { session, signal, cache: 'no-store' }),
+  car: (id, session, signal) => request('/cars/' + id, { session, signal, cache: 'no-store' }),
   categories: (signal) => request('/categories', { signal }),
 }
 
 export const accountApi = {
-  me: (token, signal) => request('/users/me', { token, signal }),
-  deleteMe: (token) => request('/users/me', { method: 'DELETE', token, responseType: 'text' }),
-  user: (id, token, signal) => request('/users?userId=' + id, { token, signal }),
-  deleteUser: (id, token) => request('/users?userId=' + id, { method: 'DELETE', token, responseType: 'text' }),
+  me: (session, signal) => request('/users/me', { session, signal }),
+  deleteMe: (session) => request('/users/me', { method: 'DELETE', session, responseType: 'text' }),
+  user: (id, session, signal) => request('/users?userId=' + id, { session, signal }),
+  deleteUser: (id, session) => request('/users?userId=' + id, { method: 'DELETE', session, responseType: 'text' }),
 }
 
 export const rentalApi = {
-  create: (body, token) => request('/rentals', { method: 'POST', token, body }),
-  mine: (token, signal) => request('/rentals/my', { token, signal }),
-  myRental: (id, token, signal) => request('/rentals/my/' + id, { token, signal }),
-  cancelMine: (id, token) => request('/rentals/me/cancel/' + id, { method: 'POST', token }),
-  byUser: (id, token, signal) => request('/rentals?userId=' + id, { token, signal }),
-  byId: (id, token, signal) => request('/rentals/' + id, { token, signal }),
-  cancel: (id, token) => request('/rentals/' + id + '/cancel', { method: 'POST', token }),
+  create: (body, session) => request('/rentals', { method: 'POST', session, body }),
+  mine: (session, signal) => request('/rentals/my', { session, signal }),
+  myRental: (id, session, signal) => request('/rentals/my/' + id, { session, signal }),
+  cancelMine: (id, session) => request('/rentals/me/cancel/' + id, { method: 'POST', session }),
+  byUser: (id, session, signal) => request('/rentals?userId=' + id, { session, signal }),
+  byId: (id, session, signal) => request('/rentals/' + id, { session, signal }),
+  cancel: (id, session) => request('/rentals/' + id + '/cancel', { method: 'POST', session }),
 }
 
 export const paymentApi = {
-  create: (rentalId, paymentMethod, token, signal) => request('/payments/rentals/' + rentalId, {
-    method: 'POST', token, signal, body: { paymentMethod },
+  create: (rentalId, paymentMethod, session, signal) => request('/payments/rentals/' + rentalId, {
+    method: 'POST', session, signal, body: { paymentMethod },
   }),
-  mine: (id, token, signal) => request('/payments/' + id, { token, signal }),
+  mine: (id, session, signal) => request('/payments/' + id, { session, signal }),
 }

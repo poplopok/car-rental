@@ -44,6 +44,9 @@ public class Rental {
 
     private LocalDateTime endTime;
 
+    @Column(nullable = false)
+    private LocalDateTime createdAt;
+
     public Rental() {
     }
 
@@ -77,6 +80,14 @@ public class Rental {
 
     public void setPayments(List<Payment> payments) {
         this.payments = payments;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
     }
 
     public RentalStatus getStatus() {

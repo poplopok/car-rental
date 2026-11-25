@@ -3,16 +3,20 @@ package com.example.carrental.service;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.example.carrental.dto.request.RentalRequestDto;
 import com.example.carrental.dto.response.RentalResponseDto;
 import com.example.carrental.entity.Car;
+import com.example.carrental.entity.Payment;
 import com.example.carrental.entity.Rental;
 import com.example.carrental.entity.User;
 import com.example.carrental.enums.CarStatus;
+import com.example.carrental.enums.PaymentStatus;
 import com.example.carrental.enums.RentalStatus;
 import com.example.carrental.exception.ForbiddenException;
 import com.example.carrental.exception.RentalCancellationException;
@@ -70,6 +74,7 @@ public class RentalService {
         }
 
         BigDecimal totalPrice = pricePerDay.multiply(BigDecimal.valueOf(days));
+        LocalDateTime time = LocalDateTime.now();
 
         Rental rental = new Rental();
         rental.setUser(user);
@@ -79,6 +84,7 @@ public class RentalService {
         rental.setStartTime(request.getStartTime());
         rental.setPlannedEndTime(request.getPlannedEndTime());
         rental.setStatus(RentalStatus.PENDING);
+        rental.setCreatedAt(time);
 
         car.setStatus(CarStatus.RENTED);
         carRepository.save(car);
@@ -140,6 +146,57 @@ public class RentalService {
         Rental savedRental = rentalRepository.save(rental);
 
         return rentalMapper.convertToRentalResponseDto(savedRental);
+    }
+
+    @Transactional
+    public void completeExpiredRentals() {
+        LocalDateTime now = LocalDateTime.now();
+
+        List<Rental> expiredRentals = rentalRepository.findAllByStatusAndPlannedEndTimeBefore(
+                RentalStatus.ACTIVE,
+                now);
+
+        for (Rental rental : expiredRentals) {
+            rental.setStatus(RentalStatus.COMPLETED);
+            rental.setEndTime(now);
+
+            Car car = rental.getCar();
+            car.setStatus(CarStatus.AVAILABLE);
+        }
+    }
+
+    @Transactional
+    public void processPendingRentals() {
+        List<Rental> pendingRentals = rentalRepository.findAllByStatus(RentalStatus.PENDING);
+
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime paymentDeadline = now.minusMinutes(15);
+
+        for (Rental rental : pendingRentals) {
+            List<Payment> payments = rental.getPayments();
+
+            boolean isPaid = payments.stream()
+                    .anyMatch(payment -> payment.getStatus() == PaymentStatus.COMPLETED);
+
+            if (isPaid) {
+                rental.setStatus(RentalStatus.ACTIVE);
+                rental.getCar().setStatus(CarStatus.RENTED);
+                continue;
+            }
+
+            if (rental.getCreatedAt().isAfter(paymentDeadline)) {
+                continue;
+            }
+
+            for (Payment payment : payments) {
+                if (payment.getStatus() == PaymentStatus.PENDING) {
+                    payment.setStatus(PaymentStatus.FAILED);
+                }
+            }
+
+            rental.setStatus(RentalStatus.CANCELLED);
+            rental.getCar().setStatus(CarStatus.AVAILABLE);
+        }
     }
 
     private void validateRentalCancellation(Rental rental) {

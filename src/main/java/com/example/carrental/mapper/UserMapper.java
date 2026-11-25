@@ -4,7 +4,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import com.example.carrental.dto.request.RegisterRequestDto;
-import com.example.carrental.dto.request.UserRequestDto;
+
 import com.example.carrental.dto.response.UserResponseDto;
 import com.example.carrental.entity.User;
 
